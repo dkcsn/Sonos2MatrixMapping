@@ -13,7 +13,7 @@ matrix_config =
   [[${matrixIconHex}]],
 }
 
-local ICON_STORAGE_KEY = "matrixConfigIconInstalledV5"
+local ICON_STORAGE_KEY = "matrixConfigIconInstalledV6"
 local ICON_BYTES = ${matrixIconBytes}
 
 function QuickApp:installIconsClear() self:internalStorageRemove(ICON_STORAGE_KEY) end
