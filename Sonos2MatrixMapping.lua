@@ -2,7 +2,7 @@
 -- Finds Sonos Manager children, Yahue devices and Logic Group Matrix devices.
 
 local APP_NAME = "Matrix Button Configuration"
-local APP_VERSION = "1.2.1"
+local APP_VERSION = "1.2.2"
 local DEFAULT_SOURCE_LIST = { 1, 2, 3, 11, 12, 13 }
 local MAX_MAPPING_ROWS = 12
 local DEFAULT_BUTTON_PROFILES = {
@@ -309,7 +309,9 @@ local function mappingKey(sonosId, matrixIds, yahueId)
 end
 
 local function isMappingItem(value)
-  return type(value) == "table" and value.sonosId ~= nil and type(value.deviceMap) == "table"
+  return type(value) == "table"
+    and type(value.deviceMap) == "table"
+    and (value.sonosId ~= nil or value.yahueId ~= nil or type(value.destinations) == "table")
 end
 
 local BUTTON_KEY_IDS = { "1", "2", "3", "4" }
@@ -688,7 +690,14 @@ end
 
 function QuickApp:loadButtonProfiles()
   local profiles = {}
+  local byId = {}
   local props = (api.get("/devices/" .. tostring(self.id)) or {}).properties or {}
+
+  for _, profile in ipairs(DEFAULT_BUTTON_PROFILES or {}) do
+    local copy = resolveSourceList(profile, self.sourceList or DEFAULT_SOURCE_LIST)
+    copy.id = tostring(profile.id)
+    byId[copy.id] = copy
+  end
 
   for _, variable in ipairs(props.quickAppVariables or {}) do
     local name = tostring(variable.name or "")
@@ -697,12 +706,15 @@ function QuickApp:loadButtonProfiles()
       if type(profile) == "table" then
         profile.id = profile.id or name:sub(9)
         profile.label = profile.label or profile.id
-        profiles[#profiles + 1] = profile
+        local defaults = byId[tostring(profile.id)] or {}
+        profile.targetType = profile.targetType or defaults.targetType or "sonos"
+        profile.keyMap = profile.keyMap or defaults.keyMap
+        byId[tostring(profile.id)] = profile
       end
     end
   end
 
-  if #profiles == 0 then profiles = DEFAULT_BUTTON_PROFILES end
+  for _, profile in pairs(byId) do profiles[#profiles + 1] = profile end
 
   table.sort(profiles, function(a, b)
     return tostring(a.label or a.id) < tostring(b.label or b.id)
