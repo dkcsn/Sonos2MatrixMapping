@@ -404,7 +404,7 @@ const callbacks = [
 ];
 
 const fqa = {
-  name: "Sonos 2 Matrix Mapping",
+  name: "Matrix Button Configuration",
   type: "com.fibaro.deviceController",
   apiVersion: "1.3",
   initialInterfaces: [],
@@ -447,7 +447,8 @@ const fqa = {
   ],
 };
 
-const outputName = `Sonos2MatrixMapping_v${appVersion}.fqa`;
+const outputName = `MatrixButtonConfiguration_v${appVersion}.fqa`;
 fs.writeFileSync(path.join(cwd, outputName), JSON.stringify(fqa));
+fs.writeFileSync(path.join(cwd, "MatrixButtonConfiguration.fqa"), JSON.stringify(fqa));
 fs.writeFileSync(path.join(cwd, "Sonos2MatrixMapping.fqa"), JSON.stringify(fqa));
 console.log(path.join(cwd, outputName));

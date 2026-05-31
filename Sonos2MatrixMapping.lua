@@ -1,8 +1,8 @@
--- Sonos 2 Matrix Mapping Quick App
--- Finds Sonos Manager children and Logic Group Matrix devices in the same room.
+-- Matrix Button Configuration Quick App
+-- Finds Sonos Manager children, Yahue devices and Logic Group Matrix devices.
 
-local APP_NAME = "Sonos 2 Matrix Mapping"
-local APP_VERSION = "1.1.10"
+local APP_NAME = "Matrix Button Configuration"
+local APP_VERSION = "1.2.0"
 local DEFAULT_SOURCE_LIST = { 1, 2, 3, 11, 12, 13 }
 local MAX_MAPPING_ROWS = 12
 local DEFAULT_BUTTON_PROFILES = {
@@ -90,6 +90,53 @@ local function isSonosChild(device)
   return device.type == "com.fibaro.sonosSpeaker"
     or getVar(vars, "sonosIp") ~= nil
     or getVar(vars, "sonosPort") ~= nil
+end
+
+local YAHUE_QA_UUID = "UPD896846032517896"
+local YAHUE_CHILD_CLASSES = {
+  BinarySensor = true,
+  BinarySwitch = true,
+  Button = true,
+  ColorLight = true,
+  DeviceQA = true,
+  DimLight = true,
+  DoorSensor = true,
+  LuxSensor = true,
+  MotionAreaSensor = true,
+  MotionSensor = true,
+  MultilevelSensor = true,
+  RoomZoneQA = true,
+  TempLight = true,
+  TemperatureSensor = true,
+}
+
+local function parentIdOf(device)
+  return device.parentId or device.parentID or ((device.properties or {}).parentId) or ((device.properties or {}).parentID) or 0
+end
+
+local function quickAppUuidOf(device)
+  local props = device.properties or {}
+  return tostring(device.quickAppUuid or props.quickAppUuid or props.quickAppUUID or "")
+end
+
+local function classNameOf(device)
+  local props = device.properties or {}
+  return tostring(device.className or props.className or props.quickAppClassName or "")
+end
+
+local function isYahueApp(device)
+  local props = device.properties or {}
+  local vars = props.quickAppVariables or {}
+  return getVar(vars, "Hue_IP") ~= nil
+    or getVar(vars, "Hue_User") ~= nil
+    or quickAppUuidOf(device) == YAHUE_QA_UUID
+    or contains(device.name, "Yahue")
+end
+
+local function isYahueChild(device, yahueParentIds)
+  local parentId = tostring(parentIdOf(device))
+  if yahueParentIds[parentId] then return true end
+  return YAHUE_CHILD_CLASSES[classNameOf(device)] == true
 end
 
 local function matrixModelOf(device)
@@ -339,6 +386,8 @@ end
 
 function QuickApp:onInit()
   self.sonosDevices = {}
+  self.yahueApps = {}
+  self.yahueDevices = {}
   self.matrixDevices = {}
   self.mapping = decodeJson(self:getVariable("mapping"), {})
   self.useViewLayout = asBool(self:getVariable("useViewLayout"), false)
@@ -368,7 +417,22 @@ end
 function QuickApp:loadDevices()
   local devices = api.get("/devices") or {}
   local sonos = {}
+  local yahueApps = {}
+  local yahueDevices = {}
+  local yahueParentIds = {}
   local matrices = {}
+
+  for _, device in ipairs(devices) do
+    if not isDead(device) and isYahueApp(device) then
+      yahueParentIds[tostring(device.id)] = true
+      yahueApps[#yahueApps + 1] = {
+        id = device.id,
+        name = device.name or ("Yahue " .. tostring(device.id)),
+        roomId = roomIdOf(device),
+        uuid = quickAppUuidOf(device),
+      }
+    end
+  end
 
   for _, device in ipairs(devices) do
     if not isDead(device) then
@@ -380,7 +444,16 @@ function QuickApp:loadDevices()
           name = device.name or ("Sonos " .. tostring(device.id)),
           roomId = roomIdOf(device),
           ip = getVar(vars, "sonosIp") or "",
-          parentId = device.parentId or device.parentID or 0,
+          parentId = parentIdOf(device),
+        }
+      elseif isYahueChild(device, yahueParentIds) and not isYahueApp(device) then
+        yahueDevices[#yahueDevices + 1] = {
+          id = device.id,
+          name = device.name or ("Hue " .. tostring(device.id)),
+          roomId = roomIdOf(device),
+          parentId = parentIdOf(device),
+          className = classNameOf(device),
+          type = device.type or "",
         }
       elseif isLogicMatrix(device) then
         local matrixType = getMatrixType(device)
@@ -410,8 +483,12 @@ function QuickApp:loadDevices()
   end
 
   sortByName(sonos)
+  sortByName(yahueApps)
+  sortByName(yahueDevices)
   sortByName(matrices)
   self.sonosDevices = sonos
+  self.yahueApps = yahueApps
+  self.yahueDevices = yahueDevices
   self.matrixDevices = matrices
 end
 
@@ -593,9 +670,13 @@ function QuickApp:updateSummary()
   local rows = {}
   if self.useViewLayout then
     lines[#lines + 1] = "<b>Sonos childs:</b> " .. tostring(#(self.sonosDevices or {}))
+    lines[#lines + 1] = "<b>Yahue apps:</b> " .. tostring(#(self.yahueApps or {}))
+    lines[#lines + 1] = "<b>Yahue devices:</b> " .. tostring(#(self.yahueDevices or {}))
     lines[#lines + 1] = "<b>Logic Matrix:</b> " .. tostring(#(self.matrixDevices or {}))
   else
     lines[#lines + 1] = "Sonos childs: " .. tostring(#(self.sonosDevices or {}))
+    lines[#lines + 1] = "Yahue apps: " .. tostring(#(self.yahueApps or {}))
+    lines[#lines + 1] = "Yahue devices: " .. tostring(#(self.yahueDevices or {}))
     lines[#lines + 1] = "Logic Matrix: " .. tostring(#(self.matrixDevices or {}))
   end
 
@@ -745,8 +826,11 @@ function QuickApp:dumpMapping()
   self:loadDevices()
 
   if tableCount(self.mapping) > 0 then
-    self:debug("Sonos 2 Matrix saved mapping: " .. encodeJson(self.mapping))
-    self:debug("Sonos 2 Matrix discovered matrices: " .. encodeJson(self.matrixDevices or {}))
+    self:debug(APP_NAME .. " saved mapping: " .. encodeJson(self.mapping))
+    self:debug(APP_NAME .. " discovered Sonos devices: " .. encodeJson(self.sonosDevices or {}))
+    self:debug(APP_NAME .. " discovered Yahue apps: " .. encodeJson(self.yahueApps or {}))
+    self:debug(APP_NAME .. " discovered Yahue devices: " .. encodeJson(self.yahueDevices or {}))
+    self:debug(APP_NAME .. " discovered matrices: " .. encodeJson(self.matrixDevices or {}))
     self:updateView("info", "text", "Gemt mapping skrevet i debug-log")
     return
   end
@@ -762,14 +846,20 @@ function QuickApp:dumpMapping()
       deviceMap = self:buildDeviceMap(sonos, matrixIds),
       defaultSource = self.sourceList or DEFAULT_SOURCE_LIST,
     }
-    self:debug("Sonos 2 Matrix draft mapping (ikke gemt): " .. encodeJson(draft))
-    self:debug("Sonos 2 Matrix discovered matrices: " .. encodeJson(self.matrixDevices or {}))
+    self:debug(APP_NAME .. " draft mapping (ikke gemt): " .. encodeJson(draft))
+    self:debug(APP_NAME .. " discovered Sonos devices: " .. encodeJson(self.sonosDevices or {}))
+    self:debug(APP_NAME .. " discovered Yahue apps: " .. encodeJson(self.yahueApps or {}))
+    self:debug(APP_NAME .. " discovered Yahue devices: " .. encodeJson(self.yahueDevices or {}))
+    self:debug(APP_NAME .. " discovered matrices: " .. encodeJson(self.matrixDevices or {}))
     self:updateView("info", "text", "Draft mapping skrevet i debug-log - tryk Gem for at gemme")
     return
   end
 
-  self:debug("Sonos 2 Matrix mapping: ingen gemt mapping")
-  self:debug("Sonos 2 Matrix discovered matrices: " .. encodeJson(self.matrixDevices or {}))
+  self:debug(APP_NAME .. " mapping: ingen gemt mapping")
+  self:debug(APP_NAME .. " discovered Sonos devices: " .. encodeJson(self.sonosDevices or {}))
+  self:debug(APP_NAME .. " discovered Yahue apps: " .. encodeJson(self.yahueApps or {}))
+  self:debug(APP_NAME .. " discovered Yahue devices: " .. encodeJson(self.yahueDevices or {}))
+  self:debug(APP_NAME .. " discovered matrices: " .. encodeJson(self.matrixDevices or {}))
   self:updateView("info", "text", "Ingen gemt mapping endnu")
 end
 

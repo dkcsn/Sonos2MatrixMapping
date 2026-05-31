@@ -1,18 +1,21 @@
-# Sonos 2 Matrix Mapping
+# Matrix Button Configuration
 
-Version: 1.1.10
+Version: 1.2.0
 
 ## Formål
 
-Denne QuickApp mapper Logic Group Matrix knapper til Sonos handlinger uden at bruge HC3 scenes.
+Denne QuickApp mapper Logic Group Matrix knapper til andre QuickApps uden at bruge HC3 scenes.
+
+I denne version understøttes Sonos handlinger, og Yahue installationer bliver detekteret som forberedelse til Hue/Yahue mapping.
 
 Flowet er:
 
 1. QuickApp finder Sonos Manager child devices.
-2. QuickApp finder Logic Group Matrix devices.
-3. Du vælger Sonos, Matrix og knap-profiler i GUI.
-4. QuickApp lytter selv på HC3 `refreshStates`.
-5. Matrix `centralSceneEvent` sendes videre til Sonos Managerens eksisterende `switchAction`.
+2. QuickApp finder Yahue QA og Yahue child devices.
+3. QuickApp finder Logic Group Matrix devices.
+4. Du vælger Sonos, Matrix og knap-profiler i GUI.
+5. QuickApp lytter selv på HC3 `refreshStates`.
+6. Matrix `centralSceneEvent` sendes videre til Sonos Managerens eksisterende `switchAction`.
 
 Selve Sonos action-logikken ligger stadig i Sonos Manager QA'en. Denne QA bygger mappingen og sender events videre.
 
@@ -33,6 +36,32 @@ Kaldet udføres som:
 ```lua
 fibaro.call(sonosManagerId, "switchAction", data)
 ```
+
+## Yahue Data
+
+Yahue-enheder hentes fra den eksisterende Yahue QA af Jan Gabrielsson.
+
+Denne QA leder efter Yahue ved at finde devices som enten:
+
+- har QuickApp variable `Hue_IP`
+- eller har QuickApp variable `Hue_User`
+- eller har Yahue QuickApp UUID `UPD896846032517896`
+- eller har `Yahue` i device-navnet
+
+Når Yahue QA'en er fundet, bruges dens child devices også som Yahue devices via `parentId`.
+
+Kendte Yahue child classes tæller blandt andet:
+
+- `RoomZoneQA`
+- `ColorLight`
+- `TempLight`
+- `DimLight`
+- `BinarySwitch`
+- `MotionSensor`
+- `TemperatureSensor`
+- `LuxSensor`
+
+Yahue-detektion er kun et discovery-lag i version 1.2.0. Sonos action-flowet er uændret.
 
 ## Matrix Data
 
@@ -170,6 +199,8 @@ Den skriver:
 
 - gemt mapping
 - fundne Sonos child devices
+- fundne Yahue apps
+- fundne Yahue child devices
 - fundne Matrix devices
 - event aliases og profiler
 
