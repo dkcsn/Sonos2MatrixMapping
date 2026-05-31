@@ -5,14 +5,16 @@ const cwd = process.cwd();
 const lua = fs.readFileSync(path.join(cwd, "Sonos2MatrixMapping.lua"), "utf8");
 const internalTriggerEngineLua = fs.readFileSync(path.join(cwd, "InternalTriggerEngine.lua"), "utf8");
 const appVersion = (lua.match(/local APP_VERSION = "([^"]+)"/) || [null, "dev"])[1];
-const iconPath = path.join(cwd, "Matrix Config.png");
+const iconPath = path.join(cwd, fs.existsSync(path.join(cwd, "Matrix Config HC3.png")) ? "Matrix Config HC3.png" : "Matrix Config.png");
 const matrixIconHex = fs.existsSync(iconPath) ? fs.readFileSync(iconPath).toString("hex").toUpperCase() : "";
+const matrixIconBytes = matrixIconHex.length / 2;
 const iconLua = `fibaro.ICONS = {
 matrix_config =
   [[${matrixIconHex}]],
 }
 
-local ICON_STORAGE_KEY = "matrixConfigIconInstalledV4"
+local ICON_STORAGE_KEY = "matrixConfigIconInstalledV5"
+local ICON_BYTES = ${matrixIconBytes}
 
 function QuickApp:installIconsClear() self:internalStorageRemove(ICON_STORAGE_KEY) end
 
@@ -23,7 +25,7 @@ function QuickApp:installIcons(iconNames, set, cb, timeout)
     return
   end
 
-  self:debug("Installing icon(s): " .. table.concat(iconNames or {}, ", ") .. " for type=" .. tostring(self.type or "?"))
+  self:debug("Installing icon(s): " .. table.concat(iconNames or {}, ", ") .. " for type=" .. tostring(self.type or "?") .. " bytes=" .. tostring(ICON_BYTES))
 
   local iconSet = {}
   for _, name in ipairs(iconNames) do
@@ -36,7 +38,7 @@ function QuickApp:installIcons(iconNames, set, cb, timeout)
 
   local http = net.HTTPClient
   local ok, err = pcall(function()
-    function net.HTTPClient(opts) return http({ timeout = timeout or 12000 }) end
+    function net.HTTPClient(opts) return http({ timeout = timeout or 60000 }) end
     local iconDeviceType = self.deviceIconTypeMapping[self.type] and self.type or "com.fibaro.genericDevice"
     local types = self.deviceIconTypeMapping[iconDeviceType]
     assert(types, "Unsupported device type")
