@@ -218,9 +218,8 @@ function QuickApp:handleMatrixTrigger(sourceTrigger)
     return
   end
 
-  self:debug("Calling switchAction for matrixId=" .. tostring(payload.sceneId) .. ", keyId=" .. keyId)
-  fibaro.call(payload.sonosManagerId, "switchAction", payload.data)
-  self:updateLastTrigger("Seneste trigger: Matrix " .. tostring(payload.sceneId) .. " K" .. keyId .. " " .. keyAttribute .. " -> sendt")
+  self:dispatchMatrixPayload(payload, keyAttribute)
+  self:updateLastTrigger("Seneste trigger: Matrix " .. tostring(payload.sceneId) .. " K" .. keyId .. " " .. keyAttribute .. " -> " .. tostring(payload.targetType or "sonos"))
 end
 
 function QuickApp:normalizeMatrixTrigger(sourceTrigger)
@@ -271,17 +270,8 @@ function QuickApp:buildMatrixTriggerPayload(sourceTrigger, matrixEvent)
     local sceneId = tostring(aliases[eventId] or eventId)
 
     if deviceMap[sceneId] ~= nil and deviceMap[sceneId][keyId] ~= nil then
-      local sonos = self:findSonos(item.sonosId)
-      if sonos == nil then
-        self:loadDevices()
-        sonos = self:findSonos(item.sonosId)
-      end
-
-      local sonosManagerId = tonumber((sonos or {}).parentId)
-      if sonosManagerId == nil or sonosManagerId == 0 then
-        self:debug("No Sonos Manager parent found for sonosId=" .. tostring(item.sonosId))
-        return nil
-      end
+      local entry = deviceMap[sceneId][keyId]
+      local targetType = tostring(entry.targetType or "sonos")
 
       local forwardedTrigger = {
         type = sourceTrigger.type,
@@ -291,7 +281,9 @@ function QuickApp:buildMatrixTriggerPayload(sourceTrigger, matrixEvent)
       }
 
       return {
-        sonosManagerId = sonosManagerId,
+        targetType = targetType,
+        entry = entry,
+        item = item,
         sceneId = sceneId,
         data = {
           sourceTrigger = forwardedTrigger,
@@ -303,6 +295,128 @@ function QuickApp:buildMatrixTriggerPayload(sourceTrigger, matrixEvent)
   end
 
   return nil
+end
+
+function QuickApp:dispatchMatrixPayload(payload, keyAttribute)
+  if payload == nil then return end
+
+  if payload.targetType == "yahue" then
+    self:executeYahueAction(payload.entry, keyAttribute)
+    return
+  end
+
+  local item = payload.item or {}
+  local sonos = self:findSonos(item.sonosId)
+  if sonos == nil then
+    self:loadDevices()
+    sonos = self:findSonos(item.sonosId)
+  end
+
+  local sonosManagerId = tonumber((sonos or {}).parentId)
+  if sonosManagerId == nil or sonosManagerId == 0 then
+    self:debug("No Sonos Manager parent found for sonosId=" .. tostring(item.sonosId))
+    return
+  end
+
+  self:debug("Calling Sonos switchAction for matrixId=" .. tostring(payload.sceneId))
+  fibaro.call(sonosManagerId, "switchAction", payload.data)
+end
+
+function QuickApp:executeYahueAction(entry, keyAttribute)
+  if entry == nil or type(entry.keyMap) ~= "table" then return end
+
+  local action = entry.keyMap[tostring(keyAttribute or "")]
+  if type(action) ~= "table" then return end
+
+  local actionName = tostring(action[1] or "")
+  local targetId = tonumber(entry.yahueId or entry.targetId)
+  if targetId == nil then
+    self:debug("Yahue action has no target device")
+    return
+  end
+
+  self:debug("Calling Yahue action " .. actionName .. " for deviceId=" .. tostring(targetId))
+
+  if actionName == "hueToggle" then
+    self:toggleYahueDevice(targetId)
+  elseif actionName == "hueOn" then
+    fibaro.call(targetId, "turnOn")
+  elseif actionName == "hueOff" then
+    fibaro.call(targetId, "turnOff")
+  elseif actionName == "hueSetValue" then
+    fibaro.call(targetId, "setValue", tonumber(action[2]) or 100)
+  elseif actionName == "hueDimStart" then
+    if tostring(action[2] or "up") == "down" then
+      fibaro.call(targetId, "startLevelDecrease")
+    else
+      fibaro.call(targetId, "startLevelIncrease")
+    end
+  elseif actionName == "hueDimStop" then
+    fibaro.call(targetId, "stopLevelChange")
+  elseif actionName == "hueNextScene" then
+    self:stepYahueScene(targetId, 1)
+  elseif actionName == "huePrevScene" then
+    self:stepYahueScene(targetId, -1)
+  else
+    self:debug("Unknown Yahue action: " .. actionName)
+  end
+end
+
+function QuickApp:toggleYahueDevice(targetId)
+  local ok, device = pcall(function() return api.get("/devices/" .. tostring(targetId)) end)
+  local props = ok and (device or {}).properties or {}
+  local value = props.value
+  local state = props.state
+  local isOn = state == true or value == true or (tonumber(value) ~= nil and tonumber(value) > 0)
+
+  if isOn then
+    fibaro.call(targetId, "turnOff")
+  else
+    fibaro.call(targetId, "turnOn")
+  end
+end
+
+function QuickApp:yahueSceneOptions(targetId)
+  local ok, device = pcall(function() return api.get("/devices/" .. tostring(targetId)) end)
+  if not ok or device == nil then return {} end
+
+  local result = {}
+  local seen = {}
+  local function scan(value)
+    if type(value) ~= "table" then return end
+    if value.name == "sceneSelect" and type(value.options) == "table" then
+      for _, option in ipairs(value.options) do
+        if option.value ~= nil and tostring(option.value) ~= "" and not seen[tostring(option.value)] then
+          seen[tostring(option.value)] = true
+          result[#result + 1] = option.value
+        end
+      end
+    end
+    for _, item in pairs(value) do scan(item) end
+  end
+
+  scan(device)
+  scan((device.properties or {}).uiView)
+  scan((device.properties or {}).viewLayout)
+  return result
+end
+
+function QuickApp:stepYahueScene(targetId, direction)
+  local scenes = self:yahueSceneOptions(targetId)
+  if #scenes == 0 then
+    self:debug("No Yahue scenes found for deviceId=" .. tostring(targetId))
+    return
+  end
+
+  local key = tostring(targetId)
+  local index = tonumber((self.yahueSceneIndexes or {})[key]) or 0
+  index = index + (tonumber(direction) or 1)
+  if index > #scenes then index = 1 end
+  if index < 1 then index = #scenes end
+  self.yahueSceneIndexes = self.yahueSceneIndexes or {}
+  self.yahueSceneIndexes[key] = index
+
+  fibaro.call(targetId, "sceneChanged", { values = { scenes[index] } })
 end
 
 function QuickApp:updateTriggerStatus(text)

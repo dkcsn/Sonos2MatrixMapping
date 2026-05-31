@@ -1,12 +1,12 @@
 # Matrix Button Configuration
 
-Version: 1.2.0
+Version: 1.2.1
 
 ## Formål
 
 Denne QuickApp mapper Logic Group Matrix knapper til andre QuickApps uden at bruge HC3 scenes.
 
-I denne version understøttes Sonos handlinger, og Yahue installationer bliver detekteret som forberedelse til Hue/Yahue mapping.
+I denne version understøttes Sonos handlinger og Yahue/Hue handlinger i samme Matrix mapping.
 
 Flowet er:
 
@@ -15,9 +15,9 @@ Flowet er:
 3. QuickApp finder Logic Group Matrix devices.
 4. Du vælger Sonos, Matrix og knap-profiler i GUI.
 5. QuickApp lytter selv på HC3 `refreshStates`.
-6. Matrix `centralSceneEvent` sendes videre til Sonos Managerens eksisterende `switchAction`.
+6. Matrix `centralSceneEvent` sendes videre til den valgte destination pr. knap.
 
-Selve Sonos action-logikken ligger stadig i Sonos Manager QA'en. Denne QA bygger mappingen og sender events videre.
+Selve Sonos action-logikken ligger stadig i Sonos Manager QA'en. Hue action-logikken ligger stadig i Yahue. Denne QA bygger mappingen og sender events videre.
 
 ## Sonos Data
 
@@ -50,6 +50,8 @@ Denne QA leder efter Yahue ved at finde devices som enten:
 
 Når Yahue QA'en er fundet, bruges dens child devices også som Yahue devices via `parentId`.
 
+Hvis der findes flere Yahue apps, bruges altid den med højest HC3 device id som aktiv Yahue app. Det gør det muligt at have en gammel Yahue installeret uden at den vælges ved en fejl.
+
 Kendte Yahue child classes tæller blandt andet:
 
 - `RoomZoneQA`
@@ -61,7 +63,16 @@ Kendte Yahue child classes tæller blandt andet:
 - `TemperatureSensor`
 - `LuxSensor`
 
-Yahue-detektion er kun et discovery-lag i version 1.2.0. Sonos action-flowet er uændret.
+Yahue/Hue profiler kan blandes med Sonos profiler pr. Matrix-knap. For eksempel kan K1 og K2 styre Hue, mens K3 og K4 styrer Sonos.
+
+Standard Yahue-profiler:
+
+| Profil | Pressed | Pressed2 | HeldDown | Released | Pressed3 |
+| --- | --- | --- | --- | --- | --- |
+| `profile_hue_next` | toggle | 100% | dim up | stop dim | next Hue scene |
+| `profile_hue_prev` | toggle | 100% | dim down | stop dim | previous Hue scene |
+
+Yahue-kald udføres mod Yahue child device med `fibaro.call(...)`.
 
 ## Matrix Data
 
@@ -98,6 +109,8 @@ Profilregler:
 | `sourceList` | Standard source liste til `nextSource` og `prevSource`, fx `[1,2,3,11,12,13]`. |
 | `profile_next` | Knap-profil der vises som `Next` i GUI. |
 | `profile_prev` | Knap-profil der vises som `Prev` i GUI. |
+| `profile_hue_next` | Yahue/Hue profil til toggle, 100%, dim up og next scene. |
+| `profile_hue_prev` | Yahue/Hue profil til toggle, 100%, dim down og previous scene. |
 
 ## Knap Profiler
 
@@ -138,6 +151,24 @@ Eksempel:
 
 `SOURCE_LIST` bliver automatisk erstattet med værdien fra QuickApp variablen `sourceList`.
 
+Profiler kan have `targetType`.
+
+```json
+{
+  "label": "Hue Next",
+  "targetType": "yahue",
+  "keyMap": {
+    "HeldDown": ["hueDimStart", "up"],
+    "Released": ["hueDimStop"],
+    "Pressed": ["hueToggle"],
+    "Pressed2": ["hueSetValue", 100],
+    "Pressed3": ["hueNextScene"]
+  }
+}
+```
+
+Hvis `targetType` mangler, behandles profilen som `sonos` for bagudkompatibilitet.
+
 Eksempel på Prev:
 
 ```json
@@ -157,7 +188,15 @@ Eksempel på Prev:
 
 Fra version 1.1.9 kan samme Sonos have flere mappings.
 
-Intern mapping key er:
+Intern mapping key indeholder destinationer og Matrix id'er.
+
+Nye keys har formen:
+
+```text
+sonos:<sonosId>|yahue:<yahueId>::matrixIds
+```
+
+Ældre keys havde formen:
 
 ```text
 sonosId::matrixIds

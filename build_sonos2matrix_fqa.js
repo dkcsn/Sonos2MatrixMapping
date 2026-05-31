@@ -7,6 +7,7 @@ const internalTriggerEngineLua = fs.readFileSync(path.join(cwd, "InternalTrigger
 const appVersion = (lua.match(/local APP_VERSION = "([^"]+)"/) || [null, "dev"])[1];
 const defaultProfileNext = {
   label: "Next",
+  targetType: "sonos",
   keyMap: {
     HeldDown: ["toggleVolumeChange"],
     Released: ["stopVolumeChange"],
@@ -17,12 +18,35 @@ const defaultProfileNext = {
 };
 const defaultProfilePrev = {
   label: "Prev",
+  targetType: "sonos",
   keyMap: {
     HeldDown: ["toggleVolumeChange"],
     Released: ["stopVolumeChange"],
     Pressed: ["toggle"],
     Pressed2: ["prev"],
     Pressed3: ["prevSource", "SOURCE_LIST"],
+  },
+};
+const defaultProfileHueNext = {
+  label: "Hue Next",
+  targetType: "yahue",
+  keyMap: {
+    HeldDown: ["hueDimStart", "up"],
+    Released: ["hueDimStop"],
+    Pressed: ["hueToggle"],
+    Pressed2: ["hueSetValue", 100],
+    Pressed3: ["hueNextScene"],
+  },
+};
+const defaultProfileHuePrev = {
+  label: "Hue Prev",
+  targetType: "yahue",
+  keyMap: {
+    HeldDown: ["hueDimStart", "down"],
+    Released: ["hueDimStop"],
+    Pressed: ["hueToggle"],
+    Pressed2: ["hueSetValue", 100],
+    Pressed3: ["huePrevScene"],
   },
 };
 
@@ -75,6 +99,33 @@ const uiView = [
               params: {
                 actionName: "UIAction",
                 args: ["onToggled", "sonosSelect", "$event.value"],
+              },
+            },
+          ],
+        },
+      },
+    ],
+  },
+  {
+    type: "horizontal",
+    style: { weight: "1.0" },
+    components: [
+      {
+        type: "select",
+        name: "yahueSelect",
+        text: "YAHUE / HUE",
+        selectionType: "single",
+        options: [],
+        values: [],
+        visible: true,
+        style: { weight: "1.0" },
+        eventBinding: {
+          onToggled: [
+            {
+              type: "deviceAction",
+              params: {
+                actionName: "UIAction",
+                args: ["onToggled", "yahueSelect", "$event.value"],
               },
             },
           ],
@@ -321,6 +372,34 @@ const uiView = [
       { type: "label", name: "summary", style: { weight: "1.0" }, text: "", visible: true },
     ],
   },
+  {
+    type: "horizontal",
+    style: { weight: "1.0" },
+    components: [
+      { type: "label", name: "summarySonos", style: { weight: "1.0" }, text: "", visible: true },
+    ],
+  },
+  {
+    type: "horizontal",
+    style: { weight: "1.0" },
+    components: [
+      { type: "label", name: "summaryYahueApps", style: { weight: "1.0" }, text: "", visible: true },
+    ],
+  },
+  {
+    type: "horizontal",
+    style: { weight: "1.0" },
+    components: [
+      { type: "label", name: "summaryYahueDevices", style: { weight: "1.0" }, text: "", visible: true },
+    ],
+  },
+  {
+    type: "horizontal",
+    style: { weight: "1.0" },
+    components: [
+      { type: "label", name: "summaryMatrix", style: { weight: "1.0" }, text: "", visible: true },
+    ],
+  },
   ...Array.from({ length: 12 }, (_, index) => {
     const number = index + 1;
     return {
@@ -372,6 +451,7 @@ const viewLayout = {
 
 const callbacks = [
   { name: "sonosSelect", callback: "sonosChanged", eventType: "onToggled" },
+  { name: "yahueSelect", callback: "yahueChanged", eventType: "onToggled" },
   { name: "matrixScopeSelect", callback: "matrixScopeChanged", eventType: "onToggled" },
   { name: "matrixSelect", callback: "matrixChanged", eventType: "onToggled" },
   { name: "button1Map", callback: "button1MapChanged", eventType: "onToggled" },
@@ -424,6 +504,8 @@ const fqa = {
       { name: "sourceList", value: "[1,2,3,11,12,13]" },
       { name: "profile_next", value: JSON.stringify(defaultProfileNext) },
       { name: "profile_prev", value: JSON.stringify(defaultProfilePrev) },
+      { name: "profile_hue_next", value: JSON.stringify(defaultProfileHueNext) },
+      { name: "profile_hue_prev", value: JSON.stringify(defaultProfileHuePrev) },
     ],
     uiCallbacks: callbacks,
     uiView,
