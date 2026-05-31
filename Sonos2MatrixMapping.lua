@@ -2,7 +2,7 @@
 -- Finds Sonos Manager children, Yahue devices and Logic Group Matrix devices.
 
 local APP_NAME = "Matrix Button Configuration"
-local APP_VERSION = "1.2.3"
+local APP_VERSION = "1.2.4"
 local DEFAULT_SOURCE_LIST = { 1, 2, 3, 11, 12, 13 }
 local MAX_MAPPING_ROWS = 12
 local DEFAULT_BUTTON_PROFILES = {
@@ -35,7 +35,8 @@ local DEFAULT_BUTTON_PROFILES = {
     label = "Hue Next",
     targetType = "yahue",
     keyMap = {
-      HeldDown = { "hueStepDim", 15 },
+      HeldDown = { "hueDimToggle", "up" },
+      Released = { "hueDimStopToggle" },
       Pressed = { "hueToggle" },
       Pressed2 = { "hueSetValue", 100 },
       Pressed3 = { "hueNextScene" },
@@ -46,7 +47,8 @@ local DEFAULT_BUTTON_PROFILES = {
     label = "Hue Prev",
     targetType = "yahue",
     keyMap = {
-      HeldDown = { "hueStepDim", -15 },
+      HeldDown = { "hueDimToggle", "down" },
+      Released = { "hueDimStopToggle" },
       Pressed = { "hueToggle" },
       Pressed2 = { "hueSetValue", 100 },
       Pressed3 = { "huePrevScene" },
@@ -431,6 +433,7 @@ function QuickApp:onInit()
   self.selectedSonosId = nil
   self.selectedYahueId = nil
   self.yahueSceneIndexes = {}
+  self.yahueDimDirections = {}
 
   self:applyViewMode()
   self:updateView("info", "text", APP_NAME .. " v" .. APP_VERSION)

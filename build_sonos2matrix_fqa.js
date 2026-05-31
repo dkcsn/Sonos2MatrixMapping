@@ -69,7 +69,8 @@ const defaultProfileHueNext = {
   label: "Hue Next",
   targetType: "yahue",
   keyMap: {
-    HeldDown: ["hueStepDim", 15],
+    HeldDown: ["hueDimToggle", "up"],
+    Released: ["hueDimStopToggle"],
     Pressed: ["hueToggle"],
     Pressed2: ["hueSetValue", 100],
     Pressed3: ["hueNextScene"],
@@ -79,7 +80,8 @@ const defaultProfileHuePrev = {
   label: "Hue Prev",
   targetType: "yahue",
   keyMap: {
-    HeldDown: ["hueStepDim", -15],
+    HeldDown: ["hueDimToggle", "down"],
+    Released: ["hueDimStopToggle"],
     Pressed: ["hueToggle"],
     Pressed2: ["hueSetValue", 100],
     Pressed3: ["huePrevScene"],
