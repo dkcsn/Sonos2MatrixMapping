@@ -7,33 +7,37 @@ const internalTriggerEngineLua = fs.readFileSync(path.join(cwd, "InternalTrigger
 const appVersion = (lua.match(/local APP_VERSION = "([^"]+)"/) || [null, "dev"])[1];
 const iconPath = path.join(cwd, "Matrix Config.png");
 const matrixIconHex = fs.existsSync(iconPath) ? fs.readFileSync(iconPath).toString("hex").toUpperCase() : "";
-const iconLua = `fibaro.ICONS = fibaro.ICONS or {}
-fibaro.ICONS.matrix_config =
-  [[${matrixIconHex}]]
+const iconLua = `fibaro.ICONS = {
+matrix_config =
+  [[${matrixIconHex}]],
+}
 
-function QuickApp:installIconsClear() self:internalStorageRemove("iconsInstalled") end
+local ICON_STORAGE_KEY = "matrixConfigIconInstalledV4"
+
+function QuickApp:installIconsClear() self:internalStorageRemove(ICON_STORAGE_KEY) end
 
 function QuickApp:installIcons(iconNames, set, cb, timeout)
-  if self:internalStorageGet("iconsInstalled") == true then return end
+  if self:internalStorageGet(ICON_STORAGE_KEY) == true and tonumber((self.properties or {}).deviceIcon or 0) > 0 then return end
 
   local iconSet = {}
   for _, name in ipairs(iconNames) do
     local icon, data = {}, fibaro.ICONS[name]
     assert(data, "No such icon:" .. name)
     data = data:gsub("%s+", "")
-    _ = data:gsub("(..)", function(d) icon[#icon + 1] = tonumber(d, 16) end)
-    iconSet[#iconSet + 1] = string.char(table.unpack(icon))
+    _ = data:gsub("(..)", function(d) icon[#icon + 1] = string.char(tonumber(d, 16)) end)
+    iconSet[#iconSet + 1] = table.concat(icon)
   end
 
   local http = net.HTTPClient
-  pcall(function()
+  local ok, err = pcall(function()
     function net.HTTPClient(opts) return http({ timeout = timeout or 12000 }) end
-    local types = self.deviceIconTypeMapping[self.type]
+    local iconDeviceType = self.deviceIconTypeMapping[self.type] and self.type or "com.fibaro.genericDevice"
+    local types = self.deviceIconTypeMapping[iconDeviceType]
     assert(types, "Unsupported device type")
     assert(#types.fileNames == #iconSet, "Expecting " .. tostring(#types.fileNames) .. " icons")
-    local data = { files = iconSet, fileNames = types.fileNames, deviceType = self.type }
+    local data = { files = iconSet, fileNames = types.fileNames, deviceType = iconDeviceType }
     self:uploadIconFiles(data, {}, function(id)
-      self:internalStorageSet("iconsInstalled", true)
+      self:internalStorageSet(ICON_STORAGE_KEY, true)
       if set then self:updateProperty("deviceIcon", id) end
       if cb then cb(true, id) end
     end, function(err)
@@ -41,6 +45,10 @@ function QuickApp:installIcons(iconNames, set, cb, timeout)
     end)
   end)
   net.HTTPClient = http
+  if not ok then
+    print("Icon install failed: " .. tostring(err))
+    if cb then cb(false, err) end
+  end
 end
 `;
 const defaultProfileNext = {

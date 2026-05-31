@@ -2,7 +2,7 @@
 -- Finds Sonos Manager children, Yahue devices and Logic Group Matrix devices.
 
 local APP_NAME = "Matrix Button Configuration"
-local APP_VERSION = "1.2.4"
+local APP_VERSION = "1.2.6"
 local DEFAULT_SOURCE_LIST = { 1, 2, 3, 11, 12, 13 }
 local MAX_MAPPING_ROWS = 12
 local DEFAULT_BUTTON_PROFILES = {
