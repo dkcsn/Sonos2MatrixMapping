@@ -531,7 +531,7 @@ const callbacks = [
 
 const fqa = {
   name: "Matrix Button Configuration",
-  type: "com.fibaro.deviceController",
+  type: "com.fibaro.genericDevice",
   apiVersion: "1.3",
   initialInterfaces: [],
   initialProperties: {

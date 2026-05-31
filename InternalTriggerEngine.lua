@@ -350,13 +350,9 @@ function QuickApp:executeYahueAction(entry, keyAttribute)
   elseif actionName == "hueDimStopToggle" then
     self:stopYahueToggleDim(targetId)
   elseif actionName == "hueDimStart" then
-    if tostring(action[2] or "up") == "down" then
-      fibaro.call(targetId, "startLevelDecrease")
-    else
-      fibaro.call(targetId, "startLevelIncrease")
-    end
+    self:startYahueToggleDim(targetId, tostring(action[2] or "up"))
   elseif actionName == "hueDimStop" then
-    fibaro.call(targetId, "stopLevelChange")
+    self:stopYahueToggleDim(targetId)
   elseif actionName == "hueNextScene" then
     self:stepYahueScene(targetId, 1)
   elseif actionName == "huePrevScene" then
@@ -369,27 +365,48 @@ end
 function QuickApp:startYahueToggleDim(targetId, defaultDirection)
   local key = tostring(targetId)
   self.yahueDimDirections = self.yahueDimDirections or {}
-  self.yahueDimActiveDirections = self.yahueDimActiveDirections or {}
+  self.yahueDimStates = self.yahueDimStates or {}
   local direction = self.yahueDimDirections[key] or defaultDirection or "up"
-  self.yahueDimActiveDirections[key] = direction
+  local state = { active = true, direction = direction }
+  self.yahueDimStates[key] = state
 
-  self:debug("Yahue toggle dim start deviceId=" .. key .. " direction=" .. tostring(direction))
-  if tostring(direction) == "down" then
-    fibaro.call(targetId, "startLevelDecrease")
-  else
-    fibaro.call(targetId, "startLevelIncrease")
+  self:debug("Yahue step dim start deviceId=" .. key .. " direction=" .. tostring(direction))
+
+  local function currentValue()
+    local ok, device = pcall(function() return api.get("/devices/" .. key) end)
+    local props = ok and (device or {}).properties or {}
+    return tonumber(props.value) or 0
   end
+
+  local function step()
+    if self.yahueDimStates[key] ~= state or not state.active then return end
+
+    local value = currentValue()
+    local delta = tostring(direction) == "down" and -5 or 5
+    local nextValue = math.max(1, math.min(100, value + delta))
+
+    self:debug("Yahue step dim deviceId=" .. key .. " value=" .. tostring(value) .. " next=" .. tostring(nextValue))
+    fibaro.call(targetId, "setValue", nextValue)
+
+    if nextValue > 1 and nextValue < 100 then
+      fibaro.setTimeout(350, step)
+    end
+  end
+
+  step()
 end
 
 function QuickApp:stopYahueToggleDim(targetId)
   local key = tostring(targetId)
   self.yahueDimDirections = self.yahueDimDirections or {}
-  self.yahueDimActiveDirections = self.yahueDimActiveDirections or {}
-  local current = self.yahueDimActiveDirections[key] or self.yahueDimDirections[key] or "up"
+  self.yahueDimStates = self.yahueDimStates or {}
+  local state = self.yahueDimStates[key] or {}
+  local current = state.direction or self.yahueDimDirections[key] or "up"
+  state.active = false
+  self.yahueDimStates[key] = nil
   self.yahueDimDirections[key] = current == "down" and "up" or "down"
-  self.yahueDimActiveDirections[key] = nil
 
-  self:debug("Yahue toggle dim stop deviceId=" .. key .. " nextDirection=" .. tostring(self.yahueDimDirections[key]))
+  self:debug("Yahue step dim stop deviceId=" .. key .. " nextDirection=" .. tostring(self.yahueDimDirections[key]))
   fibaro.call(targetId, "stopLevelChange")
 end
 
