@@ -11,12 +11,10 @@ const iconLua = `fibaro.ICONS = fibaro.ICONS or {}
 fibaro.ICONS.matrix_config =
   [[${matrixIconHex}]]
 
-local ICON_STORAGE_KEY = "matrixConfigIconInstalledV2"
-
-function QuickApp:installIconsClear() self:internalStorageRemove(ICON_STORAGE_KEY) end
+function QuickApp:installIconsClear() self:internalStorageRemove("iconsInstalled") end
 
 function QuickApp:installIcons(iconNames, set, cb, timeout)
-  if self:internalStorageGet(ICON_STORAGE_KEY) == true and tonumber((self.properties or {}).deviceIcon or 0) > 0 then return end
+  if self:internalStorageGet("iconsInstalled") == true then return end
 
   local iconSet = {}
   for _, name in ipairs(iconNames) do
@@ -30,13 +28,12 @@ function QuickApp:installIcons(iconNames, set, cb, timeout)
   local http = net.HTTPClient
   pcall(function()
     function net.HTTPClient(opts) return http({ timeout = timeout or 12000 }) end
-    local iconDeviceType = self.deviceIconTypeMapping[self.type] and self.type or "com.fibaro.genericDevice"
-    local types = self.deviceIconTypeMapping[iconDeviceType]
+    local types = self.deviceIconTypeMapping[self.type]
     assert(types, "Unsupported device type")
     assert(#types.fileNames == #iconSet, "Expecting " .. tostring(#types.fileNames) .. " icons")
-    local data = { files = iconSet, fileNames = types.fileNames, deviceType = iconDeviceType }
+    local data = { files = iconSet, fileNames = types.fileNames, deviceType = self.type }
     self:uploadIconFiles(data, {}, function(id)
-      self:internalStorageSet(ICON_STORAGE_KEY, true)
+      self:internalStorageSet("iconsInstalled", true)
       if set then self:updateProperty("deviceIcon", id) end
       if cb then cb(true, id) end
     end, function(err)
@@ -526,7 +523,7 @@ const callbacks = [
 
 const fqa = {
   name: "Matrix Button Configuration",
-  type: "com.fibaro.genericDevice",
+  type: "com.fibaro.deviceController",
   apiVersion: "1.3",
   initialInterfaces: [],
   initialProperties: {

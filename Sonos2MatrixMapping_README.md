@@ -1,6 +1,6 @@
 # Matrix Button Configuration
 
-Version: 1.2.5
+Version: 1.2.4
 
 ## Formål
 

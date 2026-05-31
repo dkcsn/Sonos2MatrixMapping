@@ -324,31 +324,18 @@ end
 
 function QuickApp:executeYahueAction(entry, keyAttribute)
   if entry == nil or type(entry.keyMap) ~= "table" then return end
-  keyAttribute = tostring(keyAttribute or "")
 
+  local action = entry.keyMap[tostring(keyAttribute or "")]
+  if type(action) ~= "table" then return end
+
+  local actionName = tostring(action[1] or "")
   local targetId = tonumber(entry.yahueId or entry.targetId)
   if targetId == nil then
     self:debug("Yahue action has no target device")
     return
   end
 
-  local suppressKey = tostring(targetId) .. ":" .. tostring(entry.devId or entry.profile or "")
-  self.yahueHeldSuppress = self.yahueHeldSuppress or {}
-
-  if keyAttribute == "Pressed" and tonumber(self.yahueHeldSuppress[suppressKey] or 0) > os.time() then
-    self:debug("Suppressing Yahue Pressed after HeldDown for deviceId=" .. tostring(targetId))
-    return
-  end
-
-  local action = entry.keyMap[keyAttribute]
-  if type(action) ~= "table" then return end
-
-  local actionName = tostring(action[1] or "")
   self:debug("Calling Yahue action " .. actionName .. " for deviceId=" .. tostring(targetId))
-
-  if keyAttribute == "HeldDown" or keyAttribute == "Released" then
-    self.yahueHeldSuppress[suppressKey] = os.time() + 3
-  end
 
   if actionName == "hueToggle" then
     self:toggleYahueDevice(targetId)
