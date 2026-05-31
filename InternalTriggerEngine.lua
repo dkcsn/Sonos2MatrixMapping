@@ -345,6 +345,8 @@ function QuickApp:executeYahueAction(entry, keyAttribute)
     fibaro.call(targetId, "turnOff")
   elseif actionName == "hueSetValue" then
     fibaro.call(targetId, "setValue", tonumber(action[2]) or 100)
+  elseif actionName == "hueStepDim" then
+    self:stepYahueDim(targetId, tonumber(action[2]) or 10)
   elseif actionName == "hueDimStart" then
     if tostring(action[2] or "up") == "down" then
       fibaro.call(targetId, "startLevelDecrease")
@@ -360,6 +362,19 @@ function QuickApp:executeYahueAction(entry, keyAttribute)
   else
     self:debug("Unknown Yahue action: " .. actionName)
   end
+end
+
+function QuickApp:stepYahueDim(targetId, delta)
+  local ok, device = pcall(function() return api.get("/devices/" .. tostring(targetId)) end)
+  local props = ok and (device or {}).properties or {}
+  local current = tonumber(props.value) or 0
+  local nextValue = current + (tonumber(delta) or 0)
+
+  if nextValue > 100 then nextValue = 100 end
+  if nextValue < 1 then nextValue = 1 end
+
+  self:debug("Yahue step dim deviceId=" .. tostring(targetId) .. " " .. tostring(current) .. " -> " .. tostring(nextValue))
+  fibaro.call(targetId, "setValue", nextValue)
 end
 
 function QuickApp:toggleYahueDevice(targetId)

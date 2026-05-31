@@ -5,6 +5,44 @@ const cwd = process.cwd();
 const lua = fs.readFileSync(path.join(cwd, "Sonos2MatrixMapping.lua"), "utf8");
 const internalTriggerEngineLua = fs.readFileSync(path.join(cwd, "InternalTriggerEngine.lua"), "utf8");
 const appVersion = (lua.match(/local APP_VERSION = "([^"]+)"/) || [null, "dev"])[1];
+const iconPath = path.join(cwd, "Matrix Config.png");
+const matrixIconHex = fs.existsSync(iconPath) ? fs.readFileSync(iconPath).toString("hex").toUpperCase() : "";
+const iconLua = `fibaro.ICONS = fibaro.ICONS or {}
+fibaro.ICONS.matrix_config =
+  [[${matrixIconHex}]]
+
+function QuickApp:installIconsClear() self:internalStorageRemove("iconsInstalled") end
+
+function QuickApp:installIcons(iconNames, set, cb, timeout)
+  if self:internalStorageGet("iconsInstalled") == true then return end
+
+  local iconSet = {}
+  for _, name in ipairs(iconNames) do
+    local icon, data = {}, fibaro.ICONS[name]
+    assert(data, "No such icon:" .. name)
+    data = data:gsub("%s+", "")
+    _ = data:gsub("(..)", function(d) icon[#icon + 1] = tonumber(d, 16) end)
+    iconSet[#iconSet + 1] = string.char(table.unpack(icon))
+  end
+
+  local http = net.HTTPClient
+  pcall(function()
+    function net.HTTPClient(opts) return http({ timeout = timeout or 12000 }) end
+    local types = self.deviceIconTypeMapping[self.type]
+    assert(types, "Unsupported device type")
+    assert(#types.fileNames == #iconSet, "Expecting " .. tostring(#types.fileNames) .. " icons")
+    local data = { files = iconSet, fileNames = types.fileNames, deviceType = self.type }
+    self:uploadIconFiles(data, {}, function(id)
+      self:internalStorageSet("iconsInstalled", true)
+      if set then self:updateProperty("deviceIcon", id) end
+      if cb then cb(true, id) end
+    end, function(err)
+      if cb then cb(false, err) else print(err) end
+    end)
+  end)
+  net.HTTPClient = http
+end
+`;
 const defaultProfileNext = {
   label: "Next",
   targetType: "sonos",
@@ -31,8 +69,7 @@ const defaultProfileHueNext = {
   label: "Hue Next",
   targetType: "yahue",
   keyMap: {
-    HeldDown: ["hueDimStart", "up"],
-    Released: ["hueDimStop"],
+    HeldDown: ["hueStepDim", 15],
     Pressed: ["hueToggle"],
     Pressed2: ["hueSetValue", 100],
     Pressed3: ["hueNextScene"],
@@ -42,8 +79,7 @@ const defaultProfileHuePrev = {
   label: "Hue Prev",
   targetType: "yahue",
   keyMap: {
-    HeldDown: ["hueDimStart", "down"],
-    Released: ["hueDimStop"],
+    HeldDown: ["hueStepDim", -15],
     Pressed: ["hueToggle"],
     Pressed2: ["hueSetValue", 100],
     Pressed3: ["huePrevScene"],
@@ -512,6 +548,13 @@ const fqa = {
     viewLayout,
   },
   files: [
+    {
+      name: "Icon",
+      type: "lua",
+      isMain: false,
+      isOpen: false,
+      content: iconLua,
+    },
     {
       name: "InternalTriggerEngine",
       type: "lua",

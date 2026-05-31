@@ -1,6 +1,6 @@
 # Matrix Button Configuration
 
-Version: 1.2.2
+Version: 1.2.3
 
 ## Formål
 
@@ -69,8 +69,8 @@ Standard Yahue-profiler:
 
 | Profil | Pressed | Pressed2 | HeldDown | Released | Pressed3 |
 | --- | --- | --- | --- | --- | --- |
-| `profile_hue_next` | toggle | 100% | dim up | stop dim | next Hue scene |
-| `profile_hue_prev` | toggle | 100% | dim down | stop dim | previous Hue scene |
+| `profile_hue_next` | toggle | 100% | step dim +15% | - | next Hue scene |
+| `profile_hue_prev` | toggle | 100% | step dim -15% | - | previous Hue scene |
 
 Yahue-kald udføres mod Yahue child device med `fibaro.call(...)`.
 
@@ -158,8 +158,7 @@ Profiler kan have `targetType`.
   "label": "Hue Next",
   "targetType": "yahue",
   "keyMap": {
-    "HeldDown": ["hueDimStart", "up"],
-    "Released": ["hueDimStop"],
+    "HeldDown": ["hueStepDim", 15],
     "Pressed": ["hueToggle"],
     "Pressed2": ["hueSetValue", 100],
     "Pressed3": ["hueNextScene"]
