@@ -2,9 +2,10 @@
 -- Finds Sonos Manager children, Yahue devices and Logic Group Matrix devices.
 
 local APP_NAME = "Matrix Button Configuration"
-local APP_VERSION = "1.2.10"
+local APP_VERSION = "1.2.11"
 local DEFAULT_SOURCE_LIST = { 1, 2, 3, 11, 12, 13 }
 local MAX_MAPPING_ROWS = 12
+local DEFAULT_BACKUP_GLOBAL_NAME = "MatrixButtonConfigurationBackup"
 local DEFAULT_BUTTON_PROFILES = {
   {
     id = "next",
@@ -286,6 +287,16 @@ local function tableCount(value)
   return count
 end
 
+local function collectProfileVariables(qaId)
+  local result = {}
+  local props = (api.get("/devices/" .. tostring(qaId or 0)) or {}).properties or {}
+  for _, variable in ipairs(props.quickAppVariables or {}) do
+    local name = tostring(variable.name or "")
+    if name:sub(1, 8) == "profile_" then result[name] = variable.value end
+  end
+  return result
+end
+
 local function cloneArray(list)
   local result = {}
   for _, value in ipairs(list or {}) do result[#result + 1] = value end
@@ -431,6 +442,7 @@ function QuickApp:onInit()
   self.yahueApp = nil
   self.matrixDevices = {}
   self.mapping = decodeJson(self:getVariable("mapping"), {})
+  self.backupGlobalName = self:getVariable("backupGlobalName") or DEFAULT_BACKUP_GLOBAL_NAME
   self.useViewLayout = asBool(self:getVariable("useViewLayout"), false)
   self.matrixScope = self:getVariable("matrixScope") or "room"
   self.sourceList = decodeJson(self:getVariable("sourceList"), DEFAULT_SOURCE_LIST)
@@ -999,6 +1011,103 @@ function QuickApp:dumpMapping()
   self:debug(APP_NAME .. " discovered Yahue devices: " .. encodeJson(self.yahueDevices or {}))
   self:debug(APP_NAME .. " discovered matrices: " .. encodeJson(self.matrixDevices or {}))
   self:updateView("info", "text", "Ingen gemt mapping endnu")
+end
+
+function QuickApp:backupGlobalVariableName()
+  local name = self:getVariable("backupGlobalName")
+  if name == nil or name == "" then name = self.backupGlobalName or DEFAULT_BACKUP_GLOBAL_NAME end
+  return tostring(name)
+end
+
+function QuickApp:writeGlobalVariable(name, value)
+  local ok = pcall(function() fibaro.setGlobalVariable(name, value) end)
+  if ok then return true end
+
+  ok = pcall(function() api.post("/globalVariables", { name = name, value = value }) end)
+  if ok then return true end
+
+  ok = pcall(function() api.put("/globalVariables/" .. name, { value = value }) end)
+  return ok
+end
+
+function QuickApp:readGlobalVariable(name)
+  local ok, value = pcall(function() return fibaro.getGlobalVariable(name) end)
+  if ok and value ~= nil and value ~= "" then return value end
+
+  ok, value = pcall(function()
+    local data = api.get("/globalVariables/" .. name)
+    return (data or {}).value
+  end)
+  if ok then return value end
+  return nil
+end
+
+function QuickApp:backupMapping()
+  self.mapping = decodeJson(self:getVariable("mapping"), self.mapping or {})
+
+  local payload = {
+    appName = APP_NAME,
+    appVersion = APP_VERSION,
+    backupVersion = 1,
+    createdAt = os.date("%Y-%m-%d %H:%M:%S"),
+    qaId = self.id,
+    mapping = self.mapping or {},
+    sourceList = self.sourceList or DEFAULT_SOURCE_LIST,
+    matrixScope = self.matrixScope or "room",
+    profiles = collectProfileVariables(self.id),
+  }
+
+  local backupJson = encodeJson(payload)
+  local globalName = self:backupGlobalVariableName()
+  if self:writeGlobalVariable(globalName, backupJson) then
+    self:debug(APP_NAME .. " backup saved to global variable '" .. globalName .. "': " .. backupJson)
+    self:updateView("info", "text", "Backup gemt i global variable: " .. globalName)
+  else
+    self:error("Kunne ikke skrive backup til global variable: " .. globalName)
+    self:updateView("info", "text", "Backup fejlede - se log")
+  end
+end
+
+function QuickApp:restoreMapping()
+  local globalName = self:backupGlobalVariableName()
+  local backupJson = self:readGlobalVariable(globalName)
+  if backupJson == nil or backupJson == "" then
+    self:updateView("info", "text", "Ingen backup fundet: " .. globalName)
+    return
+  end
+
+  local backup = decodeJson(backupJson, nil)
+  if type(backup) ~= "table" or type(backup.mapping) ~= "table" then
+    self:error("Backup har ugyldigt format i global variable '" .. globalName .. "': " .. tostring(backupJson))
+    self:updateView("info", "text", "Backup har ugyldigt format")
+    return
+  end
+
+  self.mapping = backup.mapping
+  self:setVariable("mapping", encodeJson(self.mapping))
+
+  if type(backup.sourceList) == "table" then
+    self.sourceList = backup.sourceList
+    self:setVariable("sourceList", encodeJson(backup.sourceList))
+  end
+  if backup.matrixScope ~= nil then
+    self.matrixScope = tostring(backup.matrixScope)
+    self:setVariable("matrixScope", self.matrixScope)
+  end
+  if type(backup.profiles) == "table" then
+    for name, value in pairs(backup.profiles) do
+      if tostring(name):sub(1, 8) == "profile_" then self:setVariable(name, tostring(value or "")) end
+    end
+  end
+
+  self.buttonProfiles = self:loadButtonProfiles()
+  self:updateButtonProfileOptions()
+  self:loadDevices()
+  self:updateMatrixOptions()
+  self:updateSummary()
+
+  self:debug(APP_NAME .. " backup restored from global variable '" .. globalName .. "': " .. backupJson)
+  self:updateView("info", "text", "Backup gendannet fra global variable: " .. globalName)
 end
 
 function QuickApp:matrixDetails(matrixIds)

@@ -425,6 +425,36 @@ const uiView = [
     type: "horizontal",
     style: { weight: "1.0" },
     components: [
+      {
+        type: "button",
+        name: "backupMapping",
+        text: "Backup",
+        visible: true,
+        style: { weight: "0.5" },
+        eventBinding: {
+          onReleased: [{ type: "deviceAction", params: { actionName: "UIAction", args: ["onReleased", "backupMapping"] } }],
+          onLongPressDown: [{ type: "deviceAction", params: { actionName: "UIAction", args: ["onLongPressDown", "backupMapping"] } }],
+          onLongPressReleased: [{ type: "deviceAction", params: { actionName: "UIAction", args: ["onLongPressReleased", "backupMapping"] } }],
+        },
+      },
+      {
+        type: "button",
+        name: "restoreMapping",
+        text: "Restore",
+        visible: true,
+        style: { weight: "0.5" },
+        eventBinding: {
+          onReleased: [{ type: "deviceAction", params: { actionName: "UIAction", args: ["onReleased", "restoreMapping"] } }],
+          onLongPressDown: [{ type: "deviceAction", params: { actionName: "UIAction", args: ["onLongPressDown", "restoreMapping"] } }],
+          onLongPressReleased: [{ type: "deviceAction", params: { actionName: "UIAction", args: ["onLongPressReleased", "restoreMapping"] } }],
+        },
+      },
+    ],
+  },
+  {
+    type: "horizontal",
+    style: { weight: "1.0" },
+    components: [
       { type: "label", name: "summary", style: { weight: "1.0" }, text: "", visible: true },
     ],
   },
@@ -529,6 +559,12 @@ const callbacks = [
   { name: "restart", callback: "restart", eventType: "onReleased" },
   { name: "restart", callback: "", eventType: "onLongPressDown" },
   { name: "restart", callback: "", eventType: "onLongPressReleased" },
+  { name: "backupMapping", callback: "backupMapping", eventType: "onReleased" },
+  { name: "backupMapping", callback: "", eventType: "onLongPressDown" },
+  { name: "backupMapping", callback: "", eventType: "onLongPressReleased" },
+  { name: "restoreMapping", callback: "restoreMapping", eventType: "onReleased" },
+  { name: "restoreMapping", callback: "", eventType: "onLongPressDown" },
+  { name: "restoreMapping", callback: "", eventType: "onLongPressReleased" },
   ...Array.from({ length: 12 }, (_, index) => {
     const number = index + 1;
     return [
@@ -555,6 +591,7 @@ const fqa = {
     userDescription: "",
     quickAppVariables: [
       { name: "mapping", value: "{}" },
+      { name: "backupGlobalName", value: "MatrixButtonConfigurationBackup" },
       { name: "useViewLayout", value: "false" },
       { name: "matrixScope", value: "room" },
       { name: "sourceList", value: "[1,2,3,11,12,13]" },
