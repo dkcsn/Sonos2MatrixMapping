@@ -2,7 +2,7 @@
 -- Finds Sonos Manager children, Yahue devices and Logic Group Matrix devices.
 
 local APP_NAME = "Matrix Button Configuration"
-local APP_VERSION = "1.2.8"
+local APP_VERSION = "1.2.9"
 local DEFAULT_SOURCE_LIST = { 1, 2, 3, 11, 12, 13 }
 local MAX_MAPPING_ROWS = 12
 local DEFAULT_BUTTON_PROFILES = {
@@ -417,6 +417,12 @@ local function updateSelectedItems(self, elementName, values)
 end
 
 function QuickApp:onInit()
+  self:debug("==================================================")
+  self:debug(APP_NAME .. " v" .. APP_VERSION .. " starting")
+  self:debug("QA id=" .. tostring(self.id) .. " type=" .. tostring(self.type or "?"))
+  self:debug("HC3 time=" .. os.date("%Y-%m-%d %H:%M:%S"))
+  self:debug("==================================================")
+
   if self.installIcons then self:installIcons({ "matrix_config" }, true) end
 
   self.sonosDevices = {}

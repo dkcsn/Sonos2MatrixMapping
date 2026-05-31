@@ -72,10 +72,11 @@ function QuickApp:initTriggerEngine()
   self._lastRefresh = 0
   self._subscriptions = {}
   self._refreshLoopRunning = true
+  self._refreshErrorCount = 0
   self.http = net.HTTPClient({ timeout = 10000 })
   math.randomseed(os.time())
 
-  self:debug("Trigger engine started")
+  self:debug("Trigger engine started: url=" .. REFRESH_STATES_BASE_URL .. " last=" .. tostring(self._lastRefresh))
   self:updateTriggerStatus("Trigger engine: lytter")
 
   self:subscribeInternalTrigger({
@@ -108,10 +109,12 @@ function QuickApp:startRefreshLoop(delay)
         },
       },
       success = function(response)
+        self._refreshErrorCount = 0
         self:handleRefreshResponse(response)
       end,
       error = function(err)
-        self:error("refreshStates HTTP error: " .. tostring(err))
+        self._refreshErrorCount = (self._refreshErrorCount or 0) + 1
+        self:error("refreshStates HTTP error #" .. tostring(self._refreshErrorCount) .. ": " .. tostring(err))
         self:updateTriggerStatus("Trigger engine: HTTP fejl")
         self:startRefreshLoop(2000)
       end,

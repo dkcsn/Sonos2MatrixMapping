@@ -17,7 +17,13 @@ local ICON_STORAGE_KEY = "matrixConfigIconInstalledV4"
 function QuickApp:installIconsClear() self:internalStorageRemove(ICON_STORAGE_KEY) end
 
 function QuickApp:installIcons(iconNames, set, cb, timeout)
-  if self:internalStorageGet(ICON_STORAGE_KEY) == true and tonumber((self.properties or {}).deviceIcon or 0) > 0 then return end
+  local existingIcon = tonumber((self.properties or {}).deviceIcon or 0) or 0
+  if self:internalStorageGet(ICON_STORAGE_KEY) == true and existingIcon > 0 then
+    self:debug("Icon already installed: deviceIcon=" .. tostring(existingIcon))
+    return
+  end
+
+  self:debug("Installing icon(s): " .. table.concat(iconNames or {}, ", ") .. " for type=" .. tostring(self.type or "?"))
 
   local iconSet = {}
   for _, name in ipairs(iconNames) do
@@ -39,14 +45,16 @@ function QuickApp:installIcons(iconNames, set, cb, timeout)
     self:uploadIconFiles(data, {}, function(id)
       self:internalStorageSet(ICON_STORAGE_KEY, true)
       if set then self:updateProperty("deviceIcon", id) end
+      self:debug("Icon installed: deviceIcon=" .. tostring(id) .. " uploadType=" .. tostring(iconDeviceType))
       if cb then cb(true, id) end
     end, function(err)
-      if cb then cb(false, err) else print(err) end
+      self:error("Icon upload failed: " .. tostring(err))
+      if cb then cb(false, err) end
     end)
   end)
   net.HTTPClient = http
   if not ok then
-    print("Icon install failed: " .. tostring(err))
+    self:error("Icon install failed: " .. tostring(err))
     if cb then cb(false, err) end
   end
 end
