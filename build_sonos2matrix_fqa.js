@@ -5,6 +5,7 @@ const cwd = process.cwd();
 const lua = fs.readFileSync(path.join(cwd, "Sonos2MatrixMapping.lua"), "utf8");
 const internalTriggerEngineLua = fs.readFileSync(path.join(cwd, "InternalTriggerEngine.lua"), "utf8");
 const appVersion = (lua.match(/local APP_VERSION = "([^"]+)"/) || [null, "dev"])[1];
+const documentationUrl = "https://github.com/dkcsn/Sonos2MatrixMapping/blob/master/Sonos2MatrixMapping_README.md";
 const iconPath = path.join(cwd, fs.existsSync(path.join(cwd, "Matrix Config HC3.png")) ? "Matrix Config HC3.png" : "Matrix Config.png");
 const matrixIconHex = fs.existsSync(iconPath) ? fs.readFileSync(iconPath).toString("hex").toUpperCase() : "";
 const matrixIconBytes = matrixIconHex.length / 2;
@@ -514,6 +515,19 @@ const uiView = [
       ],
     };
   }),
+  {
+    type: "horizontal",
+    style: { weight: "1.0" },
+    components: [
+      {
+        type: "label",
+        name: "documentationLink",
+        style: { weight: "1.0" },
+        text: `<a href="${documentationUrl}">Dokumentation på GitHub</a>`,
+        visible: true,
+      },
+    ],
+  },
 ];
 
 const viewLayout = {
