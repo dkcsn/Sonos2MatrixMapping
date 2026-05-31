@@ -2,7 +2,7 @@
 -- Finds Sonos Manager children, Yahue devices and Logic Group Matrix devices.
 
 local APP_NAME = "Matrix Button Configuration"
-local APP_VERSION = "1.2.14"
+local APP_VERSION = "1.2.15"
 local DEFAULT_SOURCE_LIST = { 1, 2, 3, 11, 12, 13 }
 local MAX_MAPPING_ROWS = 12
 local DEFAULT_BACKUP_GLOBAL_NAME = "MatrixButtonConfigurationBackup"
@@ -1020,17 +1020,39 @@ function QuickApp:backupGlobalVariableName()
 end
 
 function QuickApp:writeGlobalVariable(name, value)
-  local ok = pcall(function() fibaro.setGlobalVariable(name, value) end)
-  if ok then return true end
+  local function exists()
+    local ok, current = pcall(function()
+      if hub and hub.getGlobalVariable then return hub.getGlobalVariable(name) end
+      return fibaro.getGlobalVariable(name)
+    end)
+    return ok and current ~= nil
+  end
 
-  ok = pcall(function() api.post("/globalVariables", { name = name, value = value }) end)
-  if ok then return true end
+  if not exists() then
+    local createOk, createErr = pcall(function()
+      return api.post("/globalVariables/", { name = name })
+    end)
+    self:debug("Backup global create '" .. name .. "': ok=" .. tostring(createOk) .. " err=" .. tostring(createErr))
+  end
 
-  ok = pcall(function() api.put("/globalVariables/" .. name, { value = value }) end)
-  return ok
+  local putOk, putErr = pcall(function()
+    return api.put("/globalVariables/" .. name, { value = value })
+  end)
+  self:debug("Backup global update '" .. name .. "': ok=" .. tostring(putOk) .. " err=" .. tostring(putErr))
+
+  local verify = self:readGlobalVariable(name)
+  local verified = verify == value
+  self:debug("Backup global verify '" .. name .. "': " .. tostring(verified))
+  return putOk and verified
 end
 
 function QuickApp:readGlobalVariable(name)
+  local ok, value = pcall(function()
+    if hub and hub.getGlobalVariable then return hub.getGlobalVariable(name) end
+    return nil
+  end)
+  if ok and value ~= nil and value ~= "" then return value end
+
   local ok, value = pcall(function() return fibaro.getGlobalVariable(name) end)
   if ok and value ~= nil and value ~= "" then return value end
 
