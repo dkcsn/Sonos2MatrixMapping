@@ -369,7 +369,9 @@ end
 function QuickApp:startYahueToggleDim(targetId, defaultDirection)
   local key = tostring(targetId)
   self.yahueDimDirections = self.yahueDimDirections or {}
+  self.yahueDimActiveDirections = self.yahueDimActiveDirections or {}
   local direction = self.yahueDimDirections[key] or defaultDirection or "up"
+  self.yahueDimActiveDirections[key] = direction
 
   self:debug("Yahue toggle dim start deviceId=" .. key .. " direction=" .. tostring(direction))
   if tostring(direction) == "down" then
@@ -382,8 +384,10 @@ end
 function QuickApp:stopYahueToggleDim(targetId)
   local key = tostring(targetId)
   self.yahueDimDirections = self.yahueDimDirections or {}
-  local current = self.yahueDimDirections[key] or "up"
+  self.yahueDimActiveDirections = self.yahueDimActiveDirections or {}
+  local current = self.yahueDimActiveDirections[key] or self.yahueDimDirections[key] or "up"
   self.yahueDimDirections[key] = current == "down" and "up" or "down"
+  self.yahueDimActiveDirections[key] = nil
 
   self:debug("Yahue toggle dim stop deviceId=" .. key .. " nextDirection=" .. tostring(self.yahueDimDirections[key]))
   fibaro.call(targetId, "stopLevelChange")
