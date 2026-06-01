@@ -2,7 +2,7 @@
 -- Finds Sonos Manager children, Yahue devices and Logic Group Matrix devices.
 
 local APP_NAME = "Matrix Button Configuration"
-local APP_VERSION = "1.2.31"
+local APP_VERSION = "1.2.32"
 local DEFAULT_SOURCE_LIST = { 1, 2, 3, 11, 12, 13 }
 local DEFAULT_BACKUP_GLOBAL_NAME = "MatrixButtonConfigurationBackup"
 local DEFAULT_BUTTON_PROFILES = {
@@ -578,6 +578,7 @@ function QuickApp:onInit()
   self.useViewLayout = asBool(self:getVariable("useViewLayout"), false)
   self.matrixScope = self:getVariable("matrixScope") or "room"
   self.sourceList = decodeJson(self:getVariable("sourceList"), DEFAULT_SOURCE_LIST)
+  self.pendingMatrixIds = sortedMatrixIds(decodeJson(self:getVariable("selectedMatrixIds"), {}))
   self.buttonProfiles = self:loadButtonProfiles()
   self.buttonConfig = normalizeButtonConfig(DEFAULT_BUTTON_CONFIG)
   self.selectedSonosId = nil
@@ -898,6 +899,7 @@ function QuickApp:updateMatrixOptions()
   self:updateView("matrixSelect", "options", options)
   updateSelectedItems(self, "matrixSelect", selected)
   self.pendingMatrixIds = selected
+  self:setVariable("selectedMatrixIds", encodeJson(selected))
 
   if self.matrixScope == "all" then
     self:updateView("roomInfo", "text", "Viser alle Matrix - " .. tostring(#options) .. " fundet")
@@ -1156,7 +1158,8 @@ function QuickApp:tahomaChanged(event)
 end
 
 function QuickApp:matrixChanged(event)
-  self.pendingMatrixIds = eventValues(event)
+  self.pendingMatrixIds = sortedMatrixIds(eventValues(event))
+  self:setVariable("selectedMatrixIds", encodeJson(self.pendingMatrixIds))
 end
 
 function QuickApp:matrixScopeChanged(event)

@@ -290,6 +290,7 @@ const fqa = {
       { name: "backupGlobalName", value: "MatrixButtonConfigurationBackup" },
       { name: "useViewLayout", value: "false" },
       { name: "matrixScope", value: "room" },
+      { name: "selectedMatrixIds", value: "[]" },
       { name: "sourceList", value: "[1,2,3,11,12,13]" },
       { name: "profile_next", value: JSON.stringify(defaultProfileNext) },
       { name: "profile_prev", value: JSON.stringify(defaultProfilePrev) },
