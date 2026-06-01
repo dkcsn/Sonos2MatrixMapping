@@ -2,7 +2,7 @@
 -- Finds Sonos Manager children, Yahue devices and Logic Group Matrix devices.
 
 local APP_NAME = "Matrix Button Configuration"
-local APP_VERSION = "1.2.36"
+local APP_VERSION = "1.2.37"
 local DEFAULT_SOURCE_LIST = { 1, 2, 3, 11, 12, 13 }
 local DEFAULT_BACKUP_GLOBAL_NAME = "MatrixButtonConfigurationBackup"
 local DEFAULT_BUTTON_PROFILES = {
@@ -1100,14 +1100,17 @@ function QuickApp:clearCurrentSelections()
   self.selectedTahomaId = nil
   self.selectedTahomaIds = {}
   self.pendingMatrixIds = {}
+  self.matrixScope = "room"
   self.buttonConfig = normalizeButtonConfig(DEFAULT_BUTTON_CONFIG)
   self:setVariable("selectedMatrixIds", "[]")
+  self:setVariable("matrixScope", self.matrixScope)
 
   updateSelectedItems(self, "sonosSelect", {})
   updateSelectedItems(self, "yahueSelect", {})
   updateSelectedItems(self, "tahomaSelect", {})
   updateSelectedItems(self, "matrixSelect", {})
   self:updateButtonProfileSelections()
+  self:refresh()
 end
 
 function QuickApp:clearMapping()
