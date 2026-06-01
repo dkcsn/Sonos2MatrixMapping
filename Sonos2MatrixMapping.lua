@@ -2,7 +2,7 @@
 -- Finds Sonos Manager children, Yahue devices and Logic Group Matrix devices.
 
 local APP_NAME = "Matrix Button Configuration"
-local APP_VERSION = "1.2.41"
+local APP_VERSION = "1.2.42"
 local DEFAULT_SOURCE_LIST = { 1, 2, 3, 11, 12, 13 }
 local DEFAULT_BACKUP_GLOBAL_NAME = "MatrixButtonConfigurationBackup"
 local DEFAULT_BUTTON_PROFILES = {
@@ -1296,30 +1296,6 @@ function QuickApp:clearCurrentSelections()
   updateSelectedItems(self, "tahomaSelect", {})
   updateSelectedItems(self, "matrixSelect", {})
   self:updateButtonProfileSelections()
-  self:redrawSelectionControls()
-end
-
-function QuickApp:redrawSelectionControls()
-  local controls = {
-    "sonosSelect",
-    "yahueSelect",
-    "tahomaSelect",
-    "matrixSelect",
-    "button1Map",
-    "button2Map",
-    "button3Map",
-    "button4Map",
-  }
-
-  for _, control in ipairs(controls) do self:updateView(control, "visible", false) end
-  fibaro.setTimeout(100, function()
-    updateSelectedItems(self, "sonosSelect", {})
-    updateSelectedItems(self, "yahueSelect", {})
-    updateSelectedItems(self, "tahomaSelect", {})
-    updateSelectedItems(self, "matrixSelect", {})
-    self:updateButtonProfileSelections()
-    for _, control in ipairs(controls) do self:updateView(control, "visible", true) end
-  end)
 end
 
 function QuickApp:clearMapping()
