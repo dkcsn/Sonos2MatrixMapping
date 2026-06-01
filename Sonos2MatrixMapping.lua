@@ -2,7 +2,7 @@
 -- Finds Sonos Manager children, Yahue devices and Logic Group Matrix devices.
 
 local APP_NAME = "Matrix Button Configuration"
-local APP_VERSION = "1.2.47"
+local APP_VERSION = "1.2.48"
 local DEFAULT_SOURCE_LIST = { 1, 2, 3, 11, 12, 13 }
 local DEFAULT_BACKUP_GLOBAL_NAME = "MatrixButtonConfigurationBackup"
 local DEFAULT_BUTTON_PROFILES = {
@@ -552,16 +552,21 @@ end
 
 local function updateSelectedItems(self, elementName, values)
   values = values or {}
+  local selectedItem = tostring(values[1] or "")
   self:updateView(elementName, "selectedItems", values)
+  self:updateView(elementName, "selectedItem", selectedItem)
   self:updateView(elementName, "values", values)
+  self:updateView(elementName, "value", selectedItem)
 end
 
-local function republishSelect(self, elementName, options, values)
+local function republishSelect(self, elementName, options, values, kind)
   options = options or {}
   values = values or {}
-  self:debug("Republish select " .. tostring(elementName) .. ": options=" .. tostring(#options) .. " values=" .. encodeJson(values))
+  kind = kind or "single"
+  local clearValues = kind == "multi" and { "" } or { "none" }
+  self:debug("Republish select " .. tostring(elementName) .. ": kind=" .. tostring(kind) .. " options=" .. tostring(#options) .. " values=" .. encodeJson(values))
   self:updateView(elementName, "options", {})
-  updateSelectedItems(self, elementName, {})
+  updateSelectedItems(self, elementName, clearValues)
   fibaro.setTimeout(80, function()
     self:updateView(elementName, "options", options)
     updateSelectedItems(self, elementName, values)
@@ -934,7 +939,7 @@ function QuickApp:updateMatrixOptions()
   self:updateMatrixScopeControls()
   self:updateView("matrixSelect", "text", self.matrixScope == "all" and "Alle Matrix" or "Matrix")
   self.matrixOptions = options
-  republishSelect(self, "matrixSelect", options, selected)
+  republishSelect(self, "matrixSelect", options, selected, "multi")
   self.pendingMatrixIds = selected
   self:setVariable("selectedMatrixIds", encodeJson(selected))
 
@@ -971,7 +976,7 @@ function QuickApp:updateButtonProfileOptions()
 
   self.buttonProfileOptions = options
   for _, keyId in ipairs(BUTTON_KEY_IDS) do
-    republishSelect(self, "button" .. keyId .. "Map", options, { self.buttonConfig[keyId] })
+    republishSelect(self, "button" .. keyId .. "Map", options, { self.buttonConfig[keyId] }, "single")
   end
 end
 
@@ -986,9 +991,9 @@ function QuickApp:updateActiveDestinationControls()
   self:updateView("yahueSelect", "visible", activeType == "yahue")
   self:updateView("tahomaSelect", "visible", activeType == "tahoma")
   self:updateView("sonosSelect", "visible", activeType == "sonos")
-  if activeType == "yahue" then republishSelect(self, "yahueSelect", self.yahueOptions or {}, self.selectedYahueId and { self.selectedYahueId } or {}) end
-  if activeType == "tahoma" then republishSelect(self, "tahomaSelect", self.tahomaOptions or {}, self.selectedTahomaIds or {}) end
-  if activeType == "sonos" then republishSelect(self, "sonosSelect", self.sonosOptions or {}, self.selectedSonosId and { self.selectedSonosId } or {}) end
+  if activeType == "yahue" then republishSelect(self, "yahueSelect", self.yahueOptions or {}, self.selectedYahueId and { self.selectedYahueId } or {}, "single") end
+  if activeType == "tahoma" then republishSelect(self, "tahomaSelect", self.tahomaOptions or {}, self.selectedTahomaIds or {}, "multi") end
+  if activeType == "sonos" then republishSelect(self, "sonosSelect", self.sonosOptions or {}, self.selectedSonosId and { self.selectedSonosId } or {}, "single") end
   self:updateButtonProfileOptions()
   self:updateActiveMappingStatus()
 end
@@ -1428,10 +1433,10 @@ function QuickApp:clearCurrentSelections()
   self.buttonConfig = normalizeButtonConfig(DEFAULT_BUTTON_CONFIG)
   self:setVariable("selectedMatrixIds", "[]")
 
-  republishSelect(self, "sonosSelect", self.sonosOptions or {}, {})
-  republishSelect(self, "yahueSelect", self.yahueOptions or {}, {})
-  republishSelect(self, "tahomaSelect", self.tahomaOptions or {}, {})
-  republishSelect(self, "matrixSelect", self.matrixOptions or {}, {})
+  republishSelect(self, "sonosSelect", self.sonosOptions or {}, {}, "single")
+  republishSelect(self, "yahueSelect", self.yahueOptions or {}, {}, "single")
+  republishSelect(self, "tahomaSelect", self.tahomaOptions or {}, {}, "multi")
+  republishSelect(self, "matrixSelect", self.matrixOptions or {}, {}, "multi")
   self:updateButtonProfileOptions()
   self:updateView("info", "text", "Valg nulstillet")
   self:updateActiveMappingStatus()
