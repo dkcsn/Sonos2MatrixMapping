@@ -2,7 +2,7 @@
 -- Finds Sonos Manager children, Yahue devices and Logic Group Matrix devices.
 
 local APP_NAME = "Matrix Button Configuration"
-local APP_VERSION = "1.2.42"
+local APP_VERSION = "1.2.43"
 local DEFAULT_SOURCE_LIST = { 1, 2, 3, 11, 12, 13 }
 local DEFAULT_BACKUP_GLOBAL_NAME = "MatrixButtonConfigurationBackup"
 local DEFAULT_BUTTON_PROFILES = {
@@ -554,6 +554,11 @@ local function updateSelectedItems(self, elementName, values)
   values = values or {}
   self:updateView(elementName, "selectedItems", values)
   self:updateView(elementName, "values", values)
+end
+
+local function debugIdName(device)
+  if device == nil then return "nil" end
+  return tostring(device.id or "?") .. ":" .. tostring(device.name or "?")
 end
 
 function QuickApp:onInit()
@@ -1140,12 +1145,14 @@ end
 function QuickApp:sonosChanged(event)
   local values = eventValues(event)
   self.selectedSonosId = tostring(values[1] or "")
+  self:debug("UI select sonosSelect raw=" .. encodeJson(event) .. " parsed=" .. encodeJson(values) .. " selectedSonosId=" .. tostring(self.selectedSonosId))
   self:updateMatrixOptions()
 end
 
 function QuickApp:yahueChanged(event)
   local values = eventValues(event)
   self.selectedYahueId = tostring(values[1] or "")
+  self:debug("UI select yahueSelect raw=" .. encodeJson(event) .. " parsed=" .. encodeJson(values) .. " selectedYahueId=" .. tostring(self.selectedYahueId))
   self:updateMatrixOptions()
 end
 
@@ -1154,11 +1161,13 @@ function QuickApp:tahomaChanged(event)
   self.selectedTahomaIds = values
   self.selectedTahomaId = tostring(values[1] or "")
   if self.selectedTahomaId == "" then self.selectedTahomaId = nil end
+  self:debug("UI select tahomaSelect raw=" .. encodeJson(event) .. " parsed=" .. encodeJson(values) .. " selectedTahomaIds=" .. encodeJson(self.selectedTahomaIds))
   self:updateMatrixOptions()
 end
 
 function QuickApp:matrixChanged(event)
   self.pendingMatrixIds = sortedMatrixIds(eventValues(event))
+  self:debug("UI select matrixSelect raw=" .. encodeJson(event) .. " parsed=" .. encodeJson(self.pendingMatrixIds))
   self:setVariable("selectedMatrixIds", encodeJson(self.pendingMatrixIds))
 end
 
@@ -1186,6 +1195,7 @@ function QuickApp:savedMappingSelected(event)
   local values = eventValues(event)
   self.selectedSavedMappingKey = tostring(values[1] or "")
   if self.selectedSavedMappingKey == "" then self.selectedSavedMappingKey = nil end
+  self:debug("UI select savedMappingSelect raw=" .. encodeJson(event) .. " parsed=" .. encodeJson(values) .. " selectedSavedMappingKey=" .. tostring(self.selectedSavedMappingKey or "nil"))
 end
 
 function QuickApp:button1MapChanged(event) self:setButtonProfile("1", event) end
@@ -1197,6 +1207,7 @@ function QuickApp:setButtonProfile(keyId, event)
   local values = eventValues(event)
   self.buttonConfig = normalizeButtonConfig(self.buttonConfig)
   self.buttonConfig[tostring(keyId)] = tostring(values[1] or "none")
+  self:debug("UI select button" .. tostring(keyId) .. "Map raw=" .. encodeJson(event) .. " parsed=" .. encodeJson(values) .. " buttonConfig=" .. encodeJson(self.buttonConfig))
 end
 
 function QuickApp:saveMapping()
@@ -1207,19 +1218,35 @@ function QuickApp:saveMapping()
   local usesSonos = self:buttonConfigUsesTarget("sonos")
   local usesYahue = self:buttonConfigUsesTarget("yahue")
   local usesTahoma = self:buttonConfigUsesTarget("tahoma")
+  self:debug("SaveMapping state: selectedSonosId=" .. tostring(self.selectedSonosId or "nil") ..
+    ", selectedYahueId=" .. tostring(self.selectedYahueId or "nil") ..
+    ", selectedTahomaIds=" .. encodeJson(self.selectedTahomaIds or {}) ..
+    ", pendingMatrixIds=" .. encodeJson(self.pendingMatrixIds or {}) ..
+    ", matrixScope=" .. tostring(self.matrixScope or "nil") ..
+    ", buttonConfig=" .. encodeJson(normalizeButtonConfig(self.buttonConfig)) ..
+    ", usesSonos=" .. tostring(usesSonos) ..
+    ", usesYahue=" .. tostring(usesYahue) ..
+    ", usesTahoma=" .. tostring(usesTahoma) ..
+    ", resolvedSonos=" .. debugIdName(sonos) ..
+    ", resolvedYahue=" .. debugIdName(yahue) ..
+    ", resolvedTahomas=" .. tostring(#tahomas))
   if usesSonos and sonos == nil then
+    self:debug("SaveMapping blocked: Ingen Sonos valgt")
     self:updateView("info", "text", "Ingen Sonos valgt")
     return
   end
   if usesYahue and yahue == nil then
+    self:debug("SaveMapping blocked: Ingen Yahue/Hue valgt")
     self:updateView("info", "text", "Ingen Yahue/Hue valgt")
     return
   end
   if usesTahoma and #tahomas == 0 then
+    self:debug("SaveMapping blocked: Ingen Tahoma/Velux valgt")
     self:updateView("info", "text", "Ingen Tahoma/Velux valgt")
     return
   end
   if not usesSonos and not usesYahue and not usesTahoma then
+    self:debug("SaveMapping blocked: Ingen knap-mapping valgt")
     self:updateView("info", "text", "Ingen knap-mapping valgt")
     return
   end
@@ -1230,6 +1257,7 @@ function QuickApp:saveMapping()
   end
   matrixIds = sortedMatrixIds(matrixIds)
   if #matrixIds == 0 then
+    self:debug("SaveMapping blocked: Ingen Matrix valgt")
     self:updateView("info", "text", "Ingen Matrix valgt")
     return
   end
@@ -1250,6 +1278,11 @@ function QuickApp:saveMapping()
   local mappedTahoma = usesTahoma and tahoma or nil
   local mappedTahomas = usesTahoma and tahomas or {}
   local key = mappingKey(sonosId, matrixIds, yahueId, tahomaIds)
+  self:debug("SaveMapping accepted: key=" .. tostring(key) ..
+    ", sonosId=" .. tostring(sonosId or "nil") ..
+    ", yahueId=" .. tostring(yahueId or "nil") ..
+    ", tahomaIds=" .. encodeJson(tahomaIds) ..
+    ", matrixIds=" .. encodeJson(matrixIds))
   self.mapping[key] = {
     mappingKey = key,
     sonosId = sonosId,
