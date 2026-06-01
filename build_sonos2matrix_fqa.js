@@ -107,427 +107,75 @@ const defaultProfileHuePrev = {
   },
 };
 
+const actionBinding = (eventType, name) => ({
+  type: "deviceAction",
+  params: { actionName: "UIAction", args: [eventType, name] },
+});
+const button = (name, text, weight = "0.5") => ({
+  type: "button",
+  name,
+  text,
+  visible: true,
+  style: { weight },
+  eventBinding: {
+    onReleased: [actionBinding("onReleased", name)],
+    onLongPressDown: [actionBinding("onLongPressDown", name)],
+    onLongPressReleased: [actionBinding("onLongPressReleased", name)],
+  },
+});
+const select = (name, text, selectionType = "single", weight = "1.0", options = []) => ({
+  type: "select",
+  name,
+  text,
+  selectionType,
+  options,
+  values: [],
+  visible: true,
+  style: { weight },
+  eventBinding: {
+    onToggled: [{
+      type: "deviceAction",
+      params: { actionName: "UIAction", args: ["onToggled", name, "$event.value"] },
+    }],
+  },
+});
+const label = (name, text = "", weight = "1.0") => ({
+  type: "label",
+  name,
+  style: { weight },
+  text,
+  visible: true,
+});
+const row = (...components) => ({ type: "horizontal", style: { weight: "1.0" }, components });
+
 const uiView = [
-  {
-    type: "horizontal",
-    style: { weight: "1.0" },
-    components: [
-      { type: "label", name: "info", style: { weight: "1.0" }, text: "", visible: true },
-    ],
-  },
-  {
-    type: "horizontal",
-    style: { weight: "1.0" },
-    components: [
-      { type: "label", name: "roomInfo", style: { weight: "1.0" }, text: "Vælg en Sonos højttaler", visible: true },
-    ],
-  },
-  {
-    type: "horizontal",
-    style: { weight: "1.0" },
-    components: [
-      { type: "label", name: "triggerStatus", style: { weight: "1.0" }, text: "Trigger engine: starter", visible: true },
-    ],
-  },
-  {
-    type: "horizontal",
-    style: { weight: "1.0" },
-    components: [
-      { type: "label", name: "lastTrigger", style: { weight: "1.0" }, text: "Seneste trigger: ingen", visible: true },
-    ],
-  },
-  {
-    type: "horizontal",
-    style: { weight: "1.0" },
-    components: [
-      {
-        type: "select",
-        name: "sonosSelect",
-        text: "SONOS",
-        selectionType: "single",
-        options: [],
-        values: [],
-        visible: true,
-        style: { weight: "1.0" },
-        eventBinding: {
-          onToggled: [
-            {
-              type: "deviceAction",
-              params: {
-                actionName: "UIAction",
-                args: ["onToggled", "sonosSelect", "$event.value"],
-              },
-            },
-          ],
-        },
-      },
-    ],
-  },
-  {
-    type: "horizontal",
-    style: { weight: "1.0" },
-    components: [
-      {
-        type: "select",
-        name: "yahueSelect",
-        text: "YAHUE / HUE",
-        selectionType: "single",
-        options: [],
-        values: [],
-        visible: true,
-        style: { weight: "1.0" },
-        eventBinding: {
-          onToggled: [
-            {
-              type: "deviceAction",
-              params: {
-                actionName: "UIAction",
-                args: ["onToggled", "yahueSelect", "$event.value"],
-              },
-            },
-          ],
-        },
-      },
-    ],
-  },
-  {
-    type: "horizontal",
-    style: { weight: "1.0" },
-    components: [
-      {
-        type: "select",
-        name: "matrixScopeSelect",
-        text: "Matrix visning",
-        selectionType: "single",
-        options: [
-          { type: "option", text: "Samme rum", value: "room" },
-          { type: "option", text: "Alle Matrix", value: "all" },
-        ],
-        values: [],
-        visible: true,
-        style: { weight: "1.0" },
-        eventBinding: {
-          onToggled: [
-            {
-              type: "deviceAction",
-              params: {
-                actionName: "UIAction",
-                args: ["onToggled", "matrixScopeSelect", "$event.value"],
-              },
-            },
-          ],
-        },
-      },
-    ],
-  },
-  {
-    type: "horizontal",
-    style: { weight: "1.0" },
-    components: [
-      {
-        type: "select",
-        name: "matrixSelect",
-        text: "Matrix i samme rum",
-        selectionType: "multi",
-        options: [],
-        values: [],
-        visible: true,
-        style: { weight: "1.0" },
-        eventBinding: {
-          onToggled: [
-            {
-              type: "deviceAction",
-              params: {
-                actionName: "UIAction",
-                args: ["onToggled", "matrixSelect", "$event.value"],
-              },
-            },
-          ],
-        },
-      },
-    ],
-  },
-  {
-    type: "horizontal",
-    style: { weight: "1.0" },
-    components: [
-      { type: "label", name: "buttonMapInfo", style: { weight: "1.0" }, text: "Knap mapping", visible: true },
-    ],
-  },
-  {
-    type: "horizontal",
-    style: { weight: "1.0" },
-    components: [
-      {
-        type: "select",
-        name: "button1Map",
-        text: "Knap 1",
-        selectionType: "single",
-        options: [],
-        values: [],
-        visible: true,
-        style: { weight: "0.5" },
-        eventBinding: {
-          onToggled: [
-            {
-              type: "deviceAction",
-              params: {
-                actionName: "UIAction",
-                args: ["onToggled", "button1Map", "$event.value"],
-              },
-            },
-          ],
-        },
-      },
-      {
-        type: "select",
-        name: "button2Map",
-        text: "Knap 2",
-        selectionType: "single",
-        options: [],
-        values: [],
-        visible: true,
-        style: { weight: "0.5" },
-        eventBinding: {
-          onToggled: [
-            {
-              type: "deviceAction",
-              params: {
-                actionName: "UIAction",
-                args: ["onToggled", "button2Map", "$event.value"],
-              },
-            },
-          ],
-        },
-      },
-    ],
-  },
-  {
-    type: "horizontal",
-    style: { weight: "1.0" },
-    components: [
-      {
-        type: "select",
-        name: "button3Map",
-        text: "Knap 3",
-        selectionType: "single",
-        options: [],
-        values: [],
-        visible: true,
-        style: { weight: "0.5" },
-        eventBinding: {
-          onToggled: [
-            {
-              type: "deviceAction",
-              params: {
-                actionName: "UIAction",
-                args: ["onToggled", "button3Map", "$event.value"],
-              },
-            },
-          ],
-        },
-      },
-      {
-        type: "select",
-        name: "button4Map",
-        text: "Knap 4",
-        selectionType: "single",
-        options: [],
-        values: [],
-        visible: true,
-        style: { weight: "0.5" },
-        eventBinding: {
-          onToggled: [
-            {
-              type: "deviceAction",
-              params: {
-                actionName: "UIAction",
-                args: ["onToggled", "button4Map", "$event.value"],
-              },
-            },
-          ],
-        },
-      },
-    ],
-  },
-  {
-    type: "horizontal",
-    style: { weight: "1.0" },
-    components: [
-      {
-        type: "button",
-        name: "refresh",
-        text: "Opdater",
-        visible: true,
-        style: { weight: "0.33" },
-        eventBinding: {
-          onReleased: [{ type: "deviceAction", params: { actionName: "UIAction", args: ["onReleased", "refresh"] } }],
-          onLongPressDown: [{ type: "deviceAction", params: { actionName: "UIAction", args: ["onLongPressDown", "refresh"] } }],
-          onLongPressReleased: [{ type: "deviceAction", params: { actionName: "UIAction", args: ["onLongPressReleased", "refresh"] } }],
-        },
-      },
-      {
-        type: "button",
-        name: "saveMapping",
-        text: "Gem",
-        visible: true,
-        style: { weight: "0.33" },
-        eventBinding: {
-          onReleased: [{ type: "deviceAction", params: { actionName: "UIAction", args: ["onReleased", "saveMapping"] } }],
-          onLongPressDown: [{ type: "deviceAction", params: { actionName: "UIAction", args: ["onLongPressDown", "saveMapping"] } }],
-          onLongPressReleased: [{ type: "deviceAction", params: { actionName: "UIAction", args: ["onLongPressReleased", "saveMapping"] } }],
-        },
-      },
-      {
-        type: "button",
-        name: "clearMapping",
-        text: "Slet",
-        visible: true,
-        style: { weight: "0.33" },
-        eventBinding: {
-          onReleased: [{ type: "deviceAction", params: { actionName: "UIAction", args: ["onReleased", "clearMapping"] } }],
-          onLongPressDown: [{ type: "deviceAction", params: { actionName: "UIAction", args: ["onLongPressDown", "clearMapping"] } }],
-          onLongPressReleased: [{ type: "deviceAction", params: { actionName: "UIAction", args: ["onLongPressReleased", "clearMapping"] } }],
-        },
-      },
-    ],
-  },
-  {
-    type: "horizontal",
-    style: { weight: "1.0" },
-    components: [
-      {
-        type: "button",
-        name: "dumpMapping",
-        text: "Dump mapping",
-        visible: true,
-        style: { weight: "0.5" },
-        eventBinding: {
-          onReleased: [{ type: "deviceAction", params: { actionName: "UIAction", args: ["onReleased", "dumpMapping"] } }],
-          onLongPressDown: [{ type: "deviceAction", params: { actionName: "UIAction", args: ["onLongPressDown", "dumpMapping"] } }],
-          onLongPressReleased: [{ type: "deviceAction", params: { actionName: "UIAction", args: ["onLongPressReleased", "dumpMapping"] } }],
-        },
-      },
-      {
-        type: "button",
-        name: "restart",
-        text: "Genstart",
-        visible: true,
-        style: { weight: "0.5" },
-        eventBinding: {
-          onReleased: [{ type: "deviceAction", params: { actionName: "UIAction", args: ["onReleased", "restart"] } }],
-          onLongPressDown: [{ type: "deviceAction", params: { actionName: "UIAction", args: ["onLongPressDown", "restart"] } }],
-          onLongPressReleased: [{ type: "deviceAction", params: { actionName: "UIAction", args: ["onLongPressReleased", "restart"] } }],
-        },
-      },
-    ],
-  },
-  {
-    type: "horizontal",
-    style: { weight: "1.0" },
-    components: [
-      {
-        type: "button",
-        name: "backupMapping",
-        text: "Backup",
-        visible: true,
-        style: { weight: "0.5" },
-        eventBinding: {
-          onReleased: [{ type: "deviceAction", params: { actionName: "UIAction", args: ["onReleased", "backupMapping"] } }],
-          onLongPressDown: [{ type: "deviceAction", params: { actionName: "UIAction", args: ["onLongPressDown", "backupMapping"] } }],
-          onLongPressReleased: [{ type: "deviceAction", params: { actionName: "UIAction", args: ["onLongPressReleased", "backupMapping"] } }],
-        },
-      },
-      {
-        type: "button",
-        name: "restoreMapping",
-        text: "Restore",
-        visible: true,
-        style: { weight: "0.5" },
-        eventBinding: {
-          onReleased: [{ type: "deviceAction", params: { actionName: "UIAction", args: ["onReleased", "restoreMapping"] } }],
-          onLongPressDown: [{ type: "deviceAction", params: { actionName: "UIAction", args: ["onLongPressDown", "restoreMapping"] } }],
-          onLongPressReleased: [{ type: "deviceAction", params: { actionName: "UIAction", args: ["onLongPressReleased", "restoreMapping"] } }],
-        },
-      },
-    ],
-  },
-  {
-    type: "horizontal",
-    style: { weight: "1.0" },
-    components: [
-      { type: "label", name: "summary", style: { weight: "1.0" }, text: "", visible: true },
-    ],
-  },
-  {
-    type: "horizontal",
-    style: { weight: "1.0" },
-    components: [
-      { type: "label", name: "summarySonos", style: { weight: "1.0" }, text: "", visible: true },
-    ],
-  },
-  {
-    type: "horizontal",
-    style: { weight: "1.0" },
-    components: [
-      { type: "label", name: "summaryYahueApps", style: { weight: "1.0" }, text: "", visible: true },
-    ],
-  },
-  {
-    type: "horizontal",
-    style: { weight: "1.0" },
-    components: [
-      { type: "label", name: "summaryYahueDevices", style: { weight: "1.0" }, text: "", visible: true },
-    ],
-  },
-  {
-    type: "horizontal",
-    style: { weight: "1.0" },
-    components: [
-      { type: "label", name: "summaryMatrix", style: { weight: "1.0" }, text: "", visible: true },
-    ],
-  },
-  ...Array.from({ length: 12 }, (_, index) => {
-    const number = index + 1;
-    return {
-      type: "horizontal",
-      style: { weight: "1.0" },
-      components: [
-        {
-          type: "label",
-          name: `mapLine${number}`,
-          style: { weight: "0.75" },
-          text: "",
-          visible: false,
-        },
-        {
-          type: "button",
-          name: `deleteMap${number}`,
-          text: "Slet",
-          visible: false,
-          style: { weight: "0.25" },
-          eventBinding: {
-            onReleased: [{ type: "deviceAction", params: { actionName: "UIAction", args: ["onReleased", `deleteMap${number}`] } }],
-            onLongPressDown: [{ type: "deviceAction", params: { actionName: "UIAction", args: ["onLongPressDown", `deleteMap${number}`] } }],
-            onLongPressReleased: [{ type: "deviceAction", params: { actionName: "UIAction", args: ["onLongPressReleased", `deleteMap${number}`] } }],
-          },
-        },
-      ],
-    };
-  }),
-  {
-    type: "horizontal",
-    style: { weight: "1.0" },
-    components: [
-      {
-        type: "label",
-        name: "documentationLink",
-        style: { weight: "1.0" },
-        text: `Dokumentation: ${documentationUrl}`,
-        visible: true,
-      },
-    ],
-  },
+  row(label("info")),
+  row(label("roomInfo", "Vælg Matrix og destination")),
+  row(label("triggerStatus", "Trigger engine: starter")),
+  row(label("lastTrigger", "Seneste trigger: ingen")),
+  row(label("matrixScopeInfo", "MATRIX VISNING")),
+  row(button("matrixScopeRoom", "Samme rum", "0.5"), button("matrixScopeAll", "Alle Matrix", "0.5")),
+  row(select("matrixSelect", "MATRIX", "multi")),
+  row(label("destinationInfo", "DESTINATIONER")),
+  row(select("sonosSelect", "SONOS")),
+  row(select("yahueSelect", "YAHUE / HUE")),
+  row(label("buttonMapInfo", "KNAP MAPPING")),
+  row(select("button1Map", "Knap 1")),
+  row(select("button2Map", "Knap 2")),
+  row(select("button3Map", "Knap 3")),
+  row(select("button4Map", "Knap 4")),
+  row(button("refresh", "Opdater", "0.33"), button("saveMapping", "Gem", "0.33"), button("clearMapping", "Slet", "0.33")),
+  row(button("dumpMapping", "Dump mapping", "0.5"), button("restart", "Genstart", "0.5")),
+  row(button("backupMapping", "Backup", "0.5"), button("restoreMapping", "Restore", "0.5")),
+  row(label("savedMappingsInfo", "Gemte mappings: 0")),
+  row(select("savedMappingSelect", "GEMTE MAPPINGS", "single")),
+  row(button("loadSavedMapping", "Indlæs valgt", "0.5"), button("deleteSavedMapping", "Slet valgt", "0.5")),
+  row(label("summary")),
+  row(label("summarySonos")),
+  row(label("summaryYahueApps")),
+  row(label("summaryYahueDevices")),
+  row(label("summaryMatrix")),
+  row(label("documentationLink", `Dokumentation: ${documentationUrl}`)),
 ];
 
 const viewLayout = {
@@ -552,7 +200,12 @@ const viewLayout = {
 const callbacks = [
   { name: "sonosSelect", callback: "sonosChanged", eventType: "onToggled" },
   { name: "yahueSelect", callback: "yahueChanged", eventType: "onToggled" },
-  { name: "matrixScopeSelect", callback: "matrixScopeChanged", eventType: "onToggled" },
+  { name: "matrixScopeRoom", callback: "matrixScopeRoom", eventType: "onReleased" },
+  { name: "matrixScopeRoom", callback: "", eventType: "onLongPressDown" },
+  { name: "matrixScopeRoom", callback: "", eventType: "onLongPressReleased" },
+  { name: "matrixScopeAll", callback: "matrixScopeAll", eventType: "onReleased" },
+  { name: "matrixScopeAll", callback: "", eventType: "onLongPressDown" },
+  { name: "matrixScopeAll", callback: "", eventType: "onLongPressReleased" },
   { name: "matrixSelect", callback: "matrixChanged", eventType: "onToggled" },
   { name: "button1Map", callback: "button1MapChanged", eventType: "onToggled" },
   { name: "button2Map", callback: "button2MapChanged", eventType: "onToggled" },
@@ -579,14 +232,13 @@ const callbacks = [
   { name: "restoreMapping", callback: "restoreMapping", eventType: "onReleased" },
   { name: "restoreMapping", callback: "", eventType: "onLongPressDown" },
   { name: "restoreMapping", callback: "", eventType: "onLongPressReleased" },
-  ...Array.from({ length: 12 }, (_, index) => {
-    const number = index + 1;
-    return [
-      { name: `deleteMap${number}`, callback: `deleteMap${number}`, eventType: "onReleased" },
-      { name: `deleteMap${number}`, callback: "", eventType: "onLongPressDown" },
-      { name: `deleteMap${number}`, callback: "", eventType: "onLongPressReleased" },
-    ];
-  }).flat(),
+  { name: "savedMappingSelect", callback: "savedMappingSelected", eventType: "onToggled" },
+  { name: "loadSavedMapping", callback: "loadSelectedSavedMapping", eventType: "onReleased" },
+  { name: "loadSavedMapping", callback: "", eventType: "onLongPressDown" },
+  { name: "loadSavedMapping", callback: "", eventType: "onLongPressReleased" },
+  { name: "deleteSavedMapping", callback: "deleteSelectedSavedMapping", eventType: "onReleased" },
+  { name: "deleteSavedMapping", callback: "", eventType: "onLongPressDown" },
+  { name: "deleteSavedMapping", callback: "", eventType: "onLongPressReleased" },
 ];
 
 const fqa = {

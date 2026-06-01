@@ -2,9 +2,8 @@
 -- Finds Sonos Manager children, Yahue devices and Logic Group Matrix devices.
 
 local APP_NAME = "Matrix Button Configuration"
-local APP_VERSION = "1.2.15"
+local APP_VERSION = "1.2.16"
 local DEFAULT_SOURCE_LIST = { 1, 2, 3, 11, 12, 13 }
-local MAX_MAPPING_ROWS = 12
 local DEFAULT_BACKUP_GLOBAL_NAME = "MatrixButtonConfigurationBackup"
 local DEFAULT_BUTTON_PROFILES = {
   {
@@ -570,10 +569,12 @@ function QuickApp:refresh()
   self:updateView("sonosSelect", "options", sonosOptions)
 
   local current = self.selectedSonosId
-  if current == nil and self.sonosDevices[1] then current = tostring(self.sonosDevices[1].id) end
-  if current ~= nil then
+  if current ~= nil and self:findSonos(current) ~= nil then
     self.selectedSonosId = tostring(current)
     updateSelectedItems(self, "sonosSelect", { self.selectedSonosId })
+  else
+    self.selectedSonosId = nil
+    updateSelectedItems(self, "sonosSelect", {})
   end
 
   local yahueOptions = {}
@@ -583,10 +584,12 @@ function QuickApp:refresh()
   self:updateView("yahueSelect", "options", yahueOptions)
 
   local currentYahue = self.selectedYahueId
-  if currentYahue == nil and self.yahueDevices[1] then currentYahue = tostring(self.yahueDevices[1].id) end
-  if currentYahue ~= nil then
+  if currentYahue ~= nil and self:findYahueDevice(currentYahue) ~= nil then
     self.selectedYahueId = tostring(currentYahue)
     updateSelectedItems(self, "yahueSelect", { self.selectedYahueId })
+  else
+    self.selectedYahueId = nil
+    updateSelectedItems(self, "yahueSelect", {})
   end
 
   self:updateMatrixOptions()
@@ -659,39 +662,48 @@ function QuickApp:matricesInRoom(roomId)
   return result
 end
 
+function QuickApp:updateMatrixScopeControls()
+  local scope = self.matrixScope == "all" and "all" or "room"
+  self:updateView("matrixScopeRoom", "text", scope == "room" and "Valgt: samme rum" or "Samme rum")
+  self:updateView("matrixScopeAll", "text", scope == "all" and "Valgt: alle Matrix" or "Alle Matrix")
+end
+
 function QuickApp:updateMatrixOptions()
   local sonos = self:findSonos(self.selectedSonosId)
+  local yahue = self:findYahueDevice(self.selectedYahueId)
+  local roomId = sonos and sonos.roomId or (yahue and yahue.roomId or nil)
+  local roomName = roomNameOf(roomId or 0)
   local options = {}
   local selected = {}
-  local matrices = {}
+  local matrices = self.matrixDevices or {}
 
-  if sonos ~= nil then
-    matrices = self.matrixScope == "all" and (self.matrixDevices or {}) or self:matricesInRoom(sonos.roomId)
-    for _, matrix in ipairs(matrices) do
-      options[#options + 1] = option(matrix.name .. " - " .. matrix.type .. " - " .. roomNameOf(matrix.roomId) .. " #" .. tostring(matrix.id), matrix.id)
-    end
-    local selectedMap = {}
-    for _, item in pairs(self.mapping or {}) do
-      if isMappingItem(item) and tostring(item.sonosId) == tostring(sonos.id) then
-        for _, id in ipairs(item.matrixIds or {}) do selectedMap[tostring(id)] = true end
-      end
-    end
-    for id, _ in pairs(selectedMap) do selected[#selected + 1] = id end
-    table.sort(selected, function(a, b) return tostring(a) < tostring(b) end)
+  if self.matrixScope ~= "all" and roomId ~= nil and tonumber(roomId) ~= 0 then
+    matrices = self:matricesInRoom(roomId)
   end
 
-  updateSelectedItems(self, "matrixScopeSelect", { self.matrixScope })
-  self:updateView("matrixSelect", "text", self.matrixScope == "all" and "Alle Matrix" or "Matrix i samme rum")
+  for _, matrix in ipairs(matrices) do
+    options[#options + 1] = option(matrix.name .. " - " .. matrix.type .. " - " .. roomNameOf(matrix.roomId) .. " #" .. tostring(matrix.id), matrix.id)
+  end
+
+  local valid = {}
+  for _, matrix in ipairs(matrices) do valid[tostring(matrix.id)] = true end
+  for _, id in ipairs(self.pendingMatrixIds or {}) do
+    if valid[tostring(id)] then selected[#selected + 1] = tostring(id) end
+  end
+  table.sort(selected, function(a, b) return tostring(a) < tostring(b) end)
+
+  self:updateMatrixScopeControls()
+  self:updateView("matrixSelect", "text", self.matrixScope == "all" and "Alle Matrix" or "Matrix")
   self:updateView("matrixSelect", "options", options)
   updateSelectedItems(self, "matrixSelect", selected)
   self.pendingMatrixIds = selected
-  self:loadButtonConfigForSelectedSonos()
 
-  if sonos == nil then
-    self:updateView("roomInfo", "text", "Vælg en Sonos højttaler")
+  if self.matrixScope == "all" then
+    self:updateView("roomInfo", "text", "Viser alle Matrix - " .. tostring(#options) .. " fundet")
+  elseif roomId == nil or tonumber(roomId) == 0 then
+    self:updateView("roomInfo", "text", "Vælg Sonos eller Yahue/Hue for samme rum - viser alle Matrix")
   else
-    local scopeText = self.matrixScope == "all" and "alle rum" or roomNameOf(sonos.roomId)
-    self:updateView("roomInfo", "text", sonos.name .. " er i " .. roomNameOf(sonos.roomId) .. " - " .. tostring(#options) .. " Matrix fundet (" .. scopeText .. ")")
+    self:updateView("roomInfo", "text", "Viser Matrix i " .. roomName .. " - " .. tostring(#options) .. " fundet")
   end
 end
 
@@ -785,6 +797,19 @@ function QuickApp:loadButtonConfigForSelectedSonos()
   self:updateButtonProfileSelections()
 end
 
+function QuickApp:mappingOptionText(item)
+  local sonos = self:findSonos(item.sonosId) or { id = item.sonosId, name = item.sonosName or tostring(item.sonosId or "") }
+  local yahue = self:findYahueDevice(item.yahueId) or { id = item.yahueId, name = item.yahueName or tostring(item.yahueId or "") }
+  local ids = item.matrixIds or {}
+  local cfg = normalizeButtonConfig(item.buttonConfig or {})
+  local targets = {}
+  if item.sonosId ~= nil then targets[#targets + 1] = "Sonos: " .. tostring(sonos.name) end
+  if item.yahueId ~= nil then targets[#targets + 1] = "Hue: " .. tostring(yahue.name) end
+  local targetText = #targets > 0 and table.concat(targets, " / ") or "Ingen destination"
+  return targetText .. " -> Matrix " .. table.concat(ids, ", ") ..
+    " | K1:" .. cfg["1"] .. " K2:" .. cfg["2"] .. " K3:" .. cfg["3"] .. " K4:" .. cfg["4"]
+end
+
 function QuickApp:updateSummary()
   local lines = {}
   local rows = {}
@@ -813,7 +838,10 @@ function QuickApp:updateSummary()
         local cfg = normalizeButtonConfig(item.buttonConfig or {})
         local profileText = "K1:" .. cfg["1"] .. " K2:" .. cfg["2"] .. " K3:" .. cfg["3"] .. " K4:" .. cfg["4"]
         local targetText = "Sonos: " .. tostring(sonos.name)
-        if item.yahueId ~= nil then targetText = targetText .. " / Hue: " .. tostring(yahue.name) end
+        if item.sonosId == nil then targetText = "" end
+        if item.yahueId ~= nil then
+          targetText = targetText ~= "" and (targetText .. " / Hue: " .. tostring(yahue.name)) or ("Hue: " .. tostring(yahue.name))
+        end
         local rowText
         if self.useViewLayout then
           rowText = "<font color='darkblue'>" .. targetText .. "</font> -> Matrix " .. table.concat(ids, ", ") ..
@@ -821,29 +849,31 @@ function QuickApp:updateSummary()
         else
           rowText = targetText .. " -> Matrix " .. table.concat(ids, ", ") .. "\n" .. profileText
         end
-        rows[#rows + 1] = { mappingKey = tostring(key), sonosId = tostring(sonos.id), text = rowText }
+        rows[#rows + 1] = { mappingKey = tostring(key), sonosId = tostring(sonos.id), text = rowText, optionText = self:mappingOptionText(item) }
       end
     end
   end
 
+  table.sort(rows, function(a, b) return tostring(a.optionText or a.text) < tostring(b.optionText or b.text) end)
   self.savedMappingRows = rows
-  self:updateSavedMappingRows(rows)
+  self:updateSavedMappingOptions(rows)
   self:updateView("summary", "text", "")
 end
 
-function QuickApp:updateSavedMappingRows(rows)
-  for index = 1, MAX_MAPPING_ROWS do
-    local row = rows[index]
-    if row ~= nil then
-      self:updateView("mapLine" .. tostring(index), "text", row.text)
-      self:updateView("mapLine" .. tostring(index), "visible", true)
-      self:updateView("deleteMap" .. tostring(index), "visible", true)
-    else
-      self:updateView("mapLine" .. tostring(index), "text", "")
-      self:updateView("mapLine" .. tostring(index), "visible", false)
-      self:updateView("deleteMap" .. tostring(index), "visible", false)
-    end
+function QuickApp:updateSavedMappingOptions(rows)
+  local options = {}
+  local selectedKey = tostring(self.selectedSavedMappingKey or "")
+  local exists = false
+  for _, row in ipairs(rows or {}) do
+    options[#options + 1] = option(row.optionText or row.text, row.mappingKey)
+    if tostring(row.mappingKey) == selectedKey then exists = true end
   end
+
+  if not exists then selectedKey = "" end
+  self.selectedSavedMappingKey = selectedKey ~= "" and selectedKey or nil
+  self:updateView("savedMappingsInfo", "text", "Gemte mappings: " .. tostring(#options))
+  self:updateView("savedMappingSelect", "options", options)
+  updateSelectedItems(self, "savedMappingSelect", selectedKey ~= "" and { selectedKey } or {})
 end
 
 function QuickApp:sonosChanged(event)
@@ -855,6 +885,7 @@ end
 function QuickApp:yahueChanged(event)
   local values = eventValues(event)
   self.selectedYahueId = tostring(values[1] or "")
+  self:updateMatrixOptions()
 end
 
 function QuickApp:matrixChanged(event)
@@ -867,6 +898,24 @@ function QuickApp:matrixScopeChanged(event)
   if self.matrixScope ~= "all" then self.matrixScope = "room" end
   self:setVariable("matrixScope", self.matrixScope)
   self:updateMatrixOptions()
+end
+
+function QuickApp:matrixScopeRoom()
+  self.matrixScope = "room"
+  self:setVariable("matrixScope", self.matrixScope)
+  self:updateMatrixOptions()
+end
+
+function QuickApp:matrixScopeAll()
+  self.matrixScope = "all"
+  self:setVariable("matrixScope", self.matrixScope)
+  self:updateMatrixOptions()
+end
+
+function QuickApp:savedMappingSelected(event)
+  local values = eventValues(event)
+  self.selectedSavedMappingKey = tostring(values[1] or "")
+  if self.selectedSavedMappingKey == "" then self.selectedSavedMappingKey = nil end
 end
 
 function QuickApp:button1MapChanged(event) self:setButtonProfile("1", event) end
@@ -883,12 +932,18 @@ end
 function QuickApp:saveMapping()
   local sonos = self:findSonos(self.selectedSonosId)
   local yahue = self:findYahueDevice(self.selectedYahueId)
-  if self:buttonConfigUsesTarget("sonos") and sonos == nil then
+  local usesSonos = self:buttonConfigUsesTarget("sonos")
+  local usesYahue = self:buttonConfigUsesTarget("yahue")
+  if usesSonos and sonos == nil then
     self:updateView("info", "text", "Ingen Sonos valgt")
     return
   end
-  if self:buttonConfigUsesTarget("yahue") and yahue == nil then
+  if usesYahue and yahue == nil then
     self:updateView("info", "text", "Ingen Yahue/Hue valgt")
+    return
+  end
+  if not usesSonos and not usesYahue then
+    self:updateView("info", "text", "Ingen knap-mapping valgt")
     return
   end
 
@@ -897,28 +952,34 @@ function QuickApp:saveMapping()
     matrixIds = {}
   end
   matrixIds = sortedMatrixIds(matrixIds)
+  if #matrixIds == 0 then
+    self:updateView("info", "text", "Ingen Matrix valgt")
+    return
+  end
 
-  local sonosId = sonos and sonos.id or nil
-  local yahueId = yahue and yahue.id or nil
+  local sonosId = usesSonos and sonos and sonos.id or nil
+  local yahueId = usesYahue and yahue and yahue.id or nil
+  local mappedSonos = usesSonos and sonos or nil
+  local mappedYahue = usesYahue and yahue or nil
   local key = mappingKey(sonosId, matrixIds, yahueId)
   self.mapping[key] = {
     mappingKey = key,
     sonosId = sonosId,
-    sonosName = sonos and sonos.name or nil,
+    sonosName = mappedSonos and mappedSonos.name or nil,
     yahueId = yahueId,
-    yahueName = yahue and yahue.name or nil,
+    yahueName = mappedYahue and mappedYahue.name or nil,
     yahueAppId = (self.yahueApp or {}).id,
     destinations = {
-      sonos = sonos and { id = sonos.id, name = sonos.name, managerId = sonos.parentId, roomId = sonos.roomId } or nil,
-      yahue = yahue and { id = yahue.id, name = yahue.name, appId = (self.yahueApp or {}).id, roomId = yahue.roomId, className = yahue.className } or nil,
+      sonos = mappedSonos and { id = mappedSonos.id, name = mappedSonos.name, managerId = mappedSonos.parentId, roomId = mappedSonos.roomId } or nil,
+      yahue = mappedYahue and { id = mappedYahue.id, name = mappedYahue.name, appId = (self.yahueApp or {}).id, roomId = mappedYahue.roomId, className = mappedYahue.className } or nil,
     },
-    roomId = sonos and sonos.roomId or (yahue and yahue.roomId or nil),
-    roomName = roomNameOf(sonos and sonos.roomId or (yahue and yahue.roomId or 0)),
+    roomId = mappedSonos and mappedSonos.roomId or (mappedYahue and mappedYahue.roomId or nil),
+    roomName = roomNameOf(mappedSonos and mappedSonos.roomId or (mappedYahue and mappedYahue.roomId or 0)),
     sourceList = self.sourceList,
     buttonConfig = normalizeButtonConfig(self.buttonConfig),
     matrixIds = matrixIds,
     matrices = self:matrixDetails(matrixIds),
-    deviceMap = self:buildDeviceMap(sonos, yahue, matrixIds),
+    deviceMap = self:buildDeviceMap(mappedSonos, mappedYahue, matrixIds),
   }
 
   self:setVariable("mapping", encodeJson(self.mapping))
@@ -928,44 +989,74 @@ end
 
 function QuickApp:clearMapping()
   local sonos = self:findSonos(self.selectedSonosId)
-  if sonos == nil then return end
+  local yahue = self:findYahueDevice(self.selectedYahueId)
+  if sonos == nil and yahue == nil then return end
 
   for key, item in pairs(self.mapping or {}) do
-    if isMappingItem(item) and tostring(item.sonosId) == tostring(sonos.id) then self.mapping[key] = nil end
+    if isMappingItem(item) and (
+      (sonos ~= nil and tostring(item.sonosId) == tostring(sonos.id)) or
+      (yahue ~= nil and tostring(item.yahueId) == tostring(yahue.id))
+    ) then self.mapping[key] = nil end
   end
   self.pendingMatrixIds = {}
   self.buttonConfig = normalizeButtonConfig(DEFAULT_BUTTON_CONFIG)
   self:setVariable("mapping", encodeJson(self.mapping))
   self:updateMatrixOptions()
   self:updateSummary()
-  self:updateView("info", "text", "Mapping slettet for " .. sonos.name)
+  self:updateView("info", "text", "Mapping slettet for valgte destinationer")
 end
 
-function QuickApp:deleteSavedMapping(index)
-  local rows = self.savedMappingRows or {}
-  local row = rows[tonumber(index) or 0]
-  if row == nil then return end
+function QuickApp:loadSelectedSavedMapping()
+  local key = tostring(self.selectedSavedMappingKey or "")
+  local item = self.mapping and self.mapping[key] or nil
+  if not isMappingItem(item) then
+    self:updateView("info", "text", "Ingen gemt mapping valgt")
+    return
+  end
 
-  local item = self.mapping[row.mappingKey]
-  self.mapping[row.mappingKey] = nil
+  self.selectedSonosId = item.sonosId ~= nil and tostring(item.sonosId) or nil
+  self.selectedYahueId = item.yahueId ~= nil and tostring(item.yahueId) or nil
+  self.pendingMatrixIds = sortedMatrixIds(item.matrixIds or {})
+  self.buttonConfig = normalizeButtonConfig(item.buttonConfig or DEFAULT_BUTTON_CONFIG)
+
+  local sonos = self:findSonos(self.selectedSonosId)
+  local yahue = self:findYahueDevice(self.selectedYahueId)
+  local roomId = sonos and sonos.roomId or (yahue and yahue.roomId or nil)
+  if self.matrixScope ~= "all" and roomId ~= nil and tonumber(roomId) ~= 0 then
+    local roomMatrices = {}
+    for _, matrix in ipairs(self:matricesInRoom(roomId)) do roomMatrices[tostring(matrix.id)] = true end
+    for _, matrixId in ipairs(self.pendingMatrixIds or {}) do
+      if not roomMatrices[tostring(matrixId)] then
+        self.matrixScope = "all"
+        self:setVariable("matrixScope", self.matrixScope)
+        break
+      end
+    end
+  end
+
+  updateSelectedItems(self, "sonosSelect", self.selectedSonosId and { self.selectedSonosId } or {})
+  updateSelectedItems(self, "yahueSelect", self.selectedYahueId and { self.selectedYahueId } or {})
+  self:updateMatrixOptions()
+  updateSelectedItems(self, "matrixSelect", self.pendingMatrixIds)
+  self:updateButtonProfileSelections()
+  self:updateView("info", "text", "Gemt mapping indlæst")
+end
+
+function QuickApp:deleteSelectedSavedMapping()
+  local key = tostring(self.selectedSavedMappingKey or "")
+  local item = self.mapping and self.mapping[key] or nil
+  if not isMappingItem(item) then
+    self:updateView("info", "text", "Ingen gemt mapping valgt")
+    return
+  end
+
+  self.mapping[key] = nil
+  self.selectedSavedMappingKey = nil
   self:setVariable("mapping", encodeJson(self.mapping))
-  self:updateView("info", "text", "Mapping slettet for " .. tostring((item or {}).sonosName or row.sonosId))
+  self:updateView("info", "text", "Gemt mapping slettet")
   self:updateMatrixOptions()
   self:updateSummary()
 end
-
-function QuickApp:deleteMap1() self:deleteSavedMapping(1) end
-function QuickApp:deleteMap2() self:deleteSavedMapping(2) end
-function QuickApp:deleteMap3() self:deleteSavedMapping(3) end
-function QuickApp:deleteMap4() self:deleteSavedMapping(4) end
-function QuickApp:deleteMap5() self:deleteSavedMapping(5) end
-function QuickApp:deleteMap6() self:deleteSavedMapping(6) end
-function QuickApp:deleteMap7() self:deleteSavedMapping(7) end
-function QuickApp:deleteMap8() self:deleteSavedMapping(8) end
-function QuickApp:deleteMap9() self:deleteSavedMapping(9) end
-function QuickApp:deleteMap10() self:deleteSavedMapping(10) end
-function QuickApp:deleteMap11() self:deleteSavedMapping(11) end
-function QuickApp:deleteMap12() self:deleteSavedMapping(12) end
 
 function QuickApp:dumpMapping()
   self.mapping = decodeJson(self:getVariable("mapping"), self.mapping or {})
