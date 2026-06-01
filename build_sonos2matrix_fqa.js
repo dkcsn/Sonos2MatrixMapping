@@ -210,7 +210,7 @@ const uiView = [
   row(label("summaryTahomaApps")),
   row(label("summaryMatrix")),
   row(button("backupMapping", "Backup to Global Var", "0.5"), button("restoreMapping", "Restore from Global Var", "0.5")),
-  row(button("dumpMapping", "Dump mapping", "0.5"), button("restart", "Genstart QA", "0.5")),
+  row(button("dumpMapping", "Dump Data to Console", "0.5"), button("restart", "Genstart QA", "0.5")),
   row(label("documentationLink", `Dokumentation: ${documentationUrl}`)),
 ];
 
