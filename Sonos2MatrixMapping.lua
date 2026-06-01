@@ -2,7 +2,7 @@
 -- Finds Sonos Manager children, Yahue devices and Logic Group Matrix devices.
 
 local APP_NAME = "Matrix Button Configuration"
-local APP_VERSION = "1.2.16"
+local APP_VERSION = "1.2.17"
 local DEFAULT_SOURCE_LIST = { 1, 2, 3, 11, 12, 13 }
 local DEFAULT_BACKUP_GLOBAL_NAME = "MatrixButtonConfigurationBackup"
 local DEFAULT_BUTTON_PROFILES = {
@@ -326,7 +326,7 @@ end
 
 local BUTTON_KEY_IDS = { "1", "2", "3", "4" }
 local BUTTON_DEV_KEYS = { "ul", "ur", "ll", "lr" }
-local DEFAULT_BUTTON_CONFIG = { ["1"] = "none", ["2"] = "none", ["3"] = "next", ["4"] = "prev" }
+local DEFAULT_BUTTON_CONFIG = { ["1"] = "none", ["2"] = "none", ["3"] = "none", ["4"] = "none" }
 
 local function normalizeButtonConfig(config)
   local result = {}
