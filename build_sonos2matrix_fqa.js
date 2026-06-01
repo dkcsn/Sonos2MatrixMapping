@@ -123,7 +123,7 @@ const defaultProfileTahomaOpen = {
   keyMap: {
     HeldDown: ["open"],
     Released: ["stop"],
-    Pressed: ["openAll"],
+    Pressed: ["open"],
     Pressed2: ["favorit"],
     Pressed3: ["nextSource"],
   },
@@ -134,7 +134,7 @@ const defaultProfileTahomaClose = {
   keyMap: {
     HeldDown: ["close"],
     Released: ["stop"],
-    Pressed: ["closeAll"],
+    Pressed: ["close"],
     Pressed2: ["favorit"],
     Pressed3: ["prevSource"],
   },

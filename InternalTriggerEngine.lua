@@ -347,13 +347,37 @@ function QuickApp:dispatchTahomaPayload(payload)
   local data = payload.data or {}
   local cleanDeviceMap = {}
   for key, value in pairs(data.deviceMap or {}) do
-    if tostring(key):sub(1, 2) ~= "__" then cleanDeviceMap[key] = value end
+    if tostring(key):sub(1, 2) ~= "__" then cleanDeviceMap[key] = self:normalizeTahomaDeviceMap(value) end
   end
   fibaro.call(tahomaAppId, "switchAction", {
     sourceTrigger = data.sourceTrigger,
     deviceMap = cleanDeviceMap,
     defaultSource = data.defaultSource,
   })
+end
+
+function QuickApp:normalizeTahomaDeviceMap(value)
+  if type(value) ~= "table" then return value end
+
+  local copy = {}
+  for key, childValue in pairs(value) do
+    if key == "keyMap" and type(childValue) == "table" then
+      copy[key] = {}
+      for eventName, action in pairs(childValue) do
+        local actionCopy = {}
+        for index, actionValue in ipairs(action or {}) do
+          actionCopy[index] = actionValue
+        end
+        if actionCopy[1] == "openAll" then actionCopy[1] = "open" end
+        if actionCopy[1] == "closeAll" then actionCopy[1] = "close" end
+        copy[key][eventName] = actionCopy
+      end
+    else
+      copy[key] = self:normalizeTahomaDeviceMap(childValue)
+    end
+  end
+
+  return copy
 end
 
 function QuickApp:executeYahueAction(entry, keyAttribute)
