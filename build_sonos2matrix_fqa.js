@@ -149,13 +149,13 @@ const label = (name, text = "", weight = "1.0") => ({
 const row = (...components) => ({ type: "horizontal", style: { weight: "1.0" }, components });
 
 const uiView = [
-  row(label("info")),
+  row(label("info", `Matrix Button Configuration v${appVersion}`)),
   row(label("roomInfo", "Vælg destination og Matrix")),
   row(label("triggerStatus", "Trigger engine: starter")),
   row(label("lastTrigger", "Seneste trigger: ingen")),
   row(label("destinationInfo", "DESTINATIONER")),
-  row(select("sonosSelect", "SONOS")),
   row(select("yahueSelect", "YAHUE / HUE")),
+  row(select("sonosSelect", "SONOS")),
   row(label("matrixScopeInfo", "MATRIX VISNING")),
   row(button("matrixScopeRoom", "Samme rum", "0.5"), button("matrixScopeAll", "Alle Matrix", "0.5")),
   row(select("matrixSelect", "MATRIX", "multi")),
@@ -168,14 +168,14 @@ const uiView = [
   row(label("savedMappingsInfo", "Gemte mappings: 0")),
   row(select("savedMappingSelect", "GEMTE MAPPINGS", "single")),
   row(button("loadSavedMapping", "Indlæs valgt", "0.5"), button("deleteSavedMapping", "Slet valgt", "0.5")),
-  row(button("backupMapping", "Backup", "0.5"), button("restoreMapping", "Restore", "0.5")),
-  row(button("dumpMapping", "Dump mapping", "0.5"), button("restart", "Genstart", "0.5")),
   row(label("summary")),
   row(label("summarySonos")),
   row(label("summaryYahueApps")),
   row(label("summaryYahueDevices")),
   row(label("summaryMatrix")),
   row(label("documentationLink", `Dokumentation: ${documentationUrl}`)),
+  row(button("backupMapping", "Backup", "0.5"), button("restoreMapping", "Restore", "0.5")),
+  row(button("dumpMapping", "Dump mapping", "0.5"), button("restart", "Genstart", "0.5")),
 ];
 
 const viewLayout = {
