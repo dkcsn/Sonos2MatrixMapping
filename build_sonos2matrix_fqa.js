@@ -5,7 +5,7 @@ const cwd = process.cwd();
 const lua = fs.readFileSync(path.join(cwd, "Sonos2MatrixMapping.lua"), "utf8");
 const internalTriggerEngineLua = fs.readFileSync(path.join(cwd, "InternalTriggerEngine.lua"), "utf8");
 const appVersion = (lua.match(/local APP_VERSION = "([^"]+)"/) || [null, "dev"])[1];
-const documentationUrl = "github.com/dkcsn/Sonos2MatrixMapping";
+const documentationUrl = "https://github.com/dkcsn/Sonos2MatrixMapping";
 const iconPath = path.join(cwd, fs.existsSync(path.join(cwd, "Matrix Config HC3.png")) ? "Matrix Config HC3.png" : "Matrix Config.png");
 const matrixIconHex = fs.existsSync(iconPath) ? fs.readFileSync(iconPath).toString("hex").toUpperCase() : "";
 const matrixIconBytes = matrixIconHex.length / 2;
@@ -209,8 +209,8 @@ const uiView = [
   row(label("summaryTahomaApps")),
   row(label("summaryMatrix")),
   row(label("documentationLink", `Dokumentation: ${documentationUrl}`)),
-  row(button("backupMapping", "Backup", "0.5"), button("restoreMapping", "Restore", "0.5")),
-  row(button("dumpMapping", "Dump mapping", "0.5"), button("restart", "Genstart", "0.5")),
+  row(button("backupMapping", "Backup to Global Var", "0.5"), button("restoreMapping", "Restore from Global Var", "0.5")),
+  row(button("dumpMapping", "Dump mapping", "0.5"), button("restart", "Genstart QA", "0.5")),
 ];
 
 const viewLayout = {
