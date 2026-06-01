@@ -188,7 +188,7 @@ const uiView = [
   row(label("lastTrigger", "Seneste trigger: ingen")),
   row(label("destinationInfo", "DESTINATIONER")),
   row(select("yahueSelect", "YAHUE / HUE")),
-  row(select("tahomaSelect", "TAHOMA / VELUX")),
+  row(select("tahomaSelect", "TAHOMA / VELUX", "multi")),
   row(select("sonosSelect", "SONOS")),
   row(label("matrixScopeInfo", "MATRIX VISNING")),
   row(button("matrixScopeRoom", "Samme rum", "0.5"), button("matrixScopeAll", "Alle Matrix", "0.5")),

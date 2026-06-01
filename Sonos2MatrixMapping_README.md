@@ -1,6 +1,6 @@
 # Matrix Button Configuration
 
-Version: 1.2.21
+Version: 1.2.22
 
 ## Formål
 
@@ -88,6 +88,8 @@ Denne QA leder efter Tahoma ved at finde en QuickApp som enten:
 Hvis der findes flere LogicTahomaSwitch apps, bruges altid den med højest HC3 device id som aktiv Tahoma app.
 
 Når LogicTahomaSwitch QA'en er fundet, bruges dens child devices som Tahoma/Velux destinationer. Mappingen gemmer både HC3 child id og `thId`, så payloaden matcher Logic Group's Matrix/Tahoma format.
+
+`TAHOMA / VELUX` er en multi-select liste. Hvis der vælges flere vinduer, bruges det første valgte vindue som primær `thId`, og de øvrige vinduer sendes med som `groups`, så parrede vinduer kan styres samlet fra samme Matrix-knap.
 
 Standard Tahoma-profiler:
 
