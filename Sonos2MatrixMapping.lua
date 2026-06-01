@@ -2,7 +2,7 @@
 -- Finds Sonos Manager children, Yahue devices and Logic Group Matrix devices.
 
 local APP_NAME = "Matrix Button Configuration"
-local APP_VERSION = "1.2.26"
+local APP_VERSION = "1.2.27"
 local DEFAULT_SOURCE_LIST = { 1, 2, 3, 11, 12, 13 }
 local DEFAULT_BACKUP_GLOBAL_NAME = "MatrixButtonConfigurationBackup"
 local DEFAULT_BUTTON_PROFILES = {
@@ -414,6 +414,25 @@ local function resolveSourceList(value, sourceList)
     result[key] = resolveSourceList(item, sourceList)
   end
   return result
+end
+
+local function normalizeActionAliases(value)
+  if type(value) ~= "table" then return false end
+
+  local changed = false
+  if value[1] == "openAll" then
+    value[1] = "open"
+    changed = true
+  elseif value[1] == "closeAll" then
+    value[1] = "close"
+    changed = true
+  end
+
+  for _, item in pairs(value) do
+    if normalizeActionAliases(item) then changed = true end
+  end
+
+  return changed
 end
 
 local function findMatrixSceneId(rootId, children)
@@ -873,6 +892,7 @@ function QuickApp:loadButtonProfiles()
   for _, profile in ipairs(DEFAULT_BUTTON_PROFILES or {}) do
     local copy = resolveSourceList(profile, self.sourceList or DEFAULT_SOURCE_LIST)
     copy.id = tostring(profile.id)
+    normalizeActionAliases(copy.keyMap)
     byId[copy.id] = copy
   end
 
@@ -881,11 +901,14 @@ function QuickApp:loadButtonProfiles()
     if name:sub(1, 8) == "profile_" then
       local profile = decodeJson(variable.value, nil)
       if type(profile) == "table" then
+        local profileChanged = normalizeActionAliases(profile.keyMap)
         profile.id = profile.id or name:sub(9)
         profile.label = profile.label or profile.id
         local defaults = byId[tostring(profile.id)] or {}
         profile.targetType = profile.targetType or defaults.targetType or "sonos"
         profile.keyMap = profile.keyMap or defaults.keyMap
+        if normalizeActionAliases(profile.keyMap) then profileChanged = true end
+        if profileChanged then self:setVariable(name, encodeJson(profile)) end
         byId[tostring(profile.id)] = profile
       end
     end
