@@ -115,7 +115,7 @@ Matrix-enheder findes via HC3 devices med Logic Group productInfo:
 productInfo:match("^2,52")
 ```
 
-Modeldetektion bruger først kendt `productInfo`, og derefter fallback på root/child metadata som modelnavn, device-navn, className og endpoint-struktur. Det betyder at enheder der kun afslører `ZBA`, `ZDB` eller `ZRB` i child-navne også bliver klassificeret korrekt.
+Modeldetektion bruger først kendt `productInfo`, og derefter fallback på root/child metadata som modelnavn, device-navn, className og endpoint-struktur. Det betyder at enheder der kun afslører `ZBA`, `ZDB` eller `ZRB` i child-navne også bliver klassificeret korrekt. Hvis en Logic Group Matrix har `productInfo` fra Logic Group (`2,52...`) men ingen ZDB/ZRB output-signatur, behandles den som ZBA/button controller.
 
 Understøttede profiler:
 
