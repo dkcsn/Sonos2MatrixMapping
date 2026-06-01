@@ -327,7 +327,12 @@ function QuickApp:dispatchMatrixPayload(payload, keyAttribute)
   end
 
   self:debug("Calling Sonos switchAction for matrixId=" .. tostring(payload.sceneId))
-  fibaro.call(sonosManagerId, "switchAction", payload.data)
+  local data = payload.data or {}
+  fibaro.call(sonosManagerId, "switchAction", {
+    sourceTrigger = data.sourceTrigger,
+    deviceMap = self:cleanExternalDeviceMap(data.deviceMap),
+    defaultSource = data.defaultSource,
+  })
 end
 
 function QuickApp:dispatchTahomaPayload(payload)
@@ -345,15 +350,19 @@ function QuickApp:dispatchTahomaPayload(payload)
 
   self:debug("Calling Tahoma switchAction for matrixId=" .. tostring(payload.sceneId))
   local data = payload.data or {}
-  local cleanDeviceMap = {}
-  for key, value in pairs(data.deviceMap or {}) do
-    if tostring(key):sub(1, 2) ~= "__" then cleanDeviceMap[key] = self:normalizeTahomaDeviceMap(value) end
-  end
   fibaro.call(tahomaAppId, "switchAction", {
     sourceTrigger = data.sourceTrigger,
-    deviceMap = cleanDeviceMap,
+    deviceMap = self:normalizeTahomaDeviceMap(self:cleanExternalDeviceMap(data.deviceMap)),
     defaultSource = data.defaultSource,
   })
+end
+
+function QuickApp:cleanExternalDeviceMap(deviceMap)
+  local cleanDeviceMap = {}
+  for key, value in pairs(deviceMap or {}) do
+    if tostring(key):sub(1, 2) ~= "__" then cleanDeviceMap[key] = value end
+  end
+  return cleanDeviceMap
 end
 
 function QuickApp:normalizeTahomaDeviceMap(value)
