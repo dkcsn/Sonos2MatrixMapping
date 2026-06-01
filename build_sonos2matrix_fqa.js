@@ -208,9 +208,9 @@ const uiView = [
   row(label("summaryYahueApps")),
   row(label("summaryTahomaApps")),
   row(label("summaryMatrix")),
-  row(label("documentationLink", `Dokumentation: ${documentationUrl}`)),
   row(button("backupMapping", "Backup to Global Var", "0.5"), button("restoreMapping", "Restore from Global Var", "0.5")),
   row(button("dumpMapping", "Dump mapping", "0.5"), button("restart", "Genstart QA", "0.5")),
+  row(label("documentationLink", `Dokumentation: ${documentationUrl}`)),
 ];
 
 const viewLayout = {
