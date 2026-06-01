@@ -4,6 +4,7 @@ const path = require("path");
 const cwd = process.cwd();
 const lua = fs.readFileSync(path.join(cwd, "Sonos2MatrixMapping.lua"), "utf8");
 const internalTriggerEngineLua = fs.readFileSync(path.join(cwd, "InternalTriggerEngine.lua"), "utf8");
+const matrixProfilesLua = fs.readFileSync(path.join(cwd, "MatrixProfiles.lua"), "utf8");
 const appVersion = (lua.match(/local APP_VERSION = "([^"]+)"/) || [null, "dev"])[1];
 const documentationUrl = "https://github.com/dkcsn/Sonos2MatrixMapping";
 const iconPath = path.join(cwd, fs.existsSync(path.join(cwd, "Matrix Config HC3.png")) ? "Matrix Config HC3.png" : "Matrix Config.png");
@@ -318,6 +319,13 @@ const fqa = {
       isMain: false,
       isOpen: false,
       content: internalTriggerEngineLua,
+    },
+    {
+      name: "MatrixProfiles",
+      type: "lua",
+      isMain: false,
+      isOpen: false,
+      content: matrixProfilesLua,
     },
     {
       name: "main",
