@@ -106,6 +106,39 @@ const defaultProfileHuePrev = {
     Pressed3: ["huePrevScene"],
   },
 };
+const defaultProfileTahomaToggle = {
+  label: "Tahoma Toggle",
+  targetType: "tahoma",
+  keyMap: {
+    HeldDown: ["toggle"],
+    Released: ["stop"],
+    Pressed: ["toggle"],
+    Pressed2: ["favorit"],
+    Pressed3: ["nextSource"],
+  },
+};
+const defaultProfileTahomaOpen = {
+  label: "Tahoma Open",
+  targetType: "tahoma",
+  keyMap: {
+    HeldDown: ["open"],
+    Released: ["stop"],
+    Pressed: ["openAll"],
+    Pressed2: ["favorit"],
+    Pressed3: ["nextSource"],
+  },
+};
+const defaultProfileTahomaClose = {
+  label: "Tahoma Close",
+  targetType: "tahoma",
+  keyMap: {
+    HeldDown: ["close"],
+    Released: ["stop"],
+    Pressed: ["closeAll"],
+    Pressed2: ["favorit"],
+    Pressed3: ["prevSource"],
+  },
+};
 
 const actionBinding = (eventType, name) => ({
   type: "deviceAction",
@@ -155,6 +188,7 @@ const uiView = [
   row(label("lastTrigger", "Seneste trigger: ingen")),
   row(label("destinationInfo", "DESTINATIONER")),
   row(select("yahueSelect", "YAHUE / HUE")),
+  row(select("tahomaSelect", "TAHOMA / VELUX")),
   row(select("sonosSelect", "SONOS")),
   row(label("matrixScopeInfo", "MATRIX VISNING")),
   row(button("matrixScopeRoom", "Samme rum", "0.5"), button("matrixScopeAll", "Alle Matrix", "0.5")),
@@ -172,6 +206,8 @@ const uiView = [
   row(label("summarySonos")),
   row(label("summaryYahueApps")),
   row(label("summaryYahueDevices")),
+  row(label("summaryTahomaApps")),
+  row(label("summaryTahomaDevices")),
   row(label("summaryMatrix")),
   row(label("documentationLink", `Dokumentation: ${documentationUrl}`)),
   row(button("backupMapping", "Backup", "0.5"), button("restoreMapping", "Restore", "0.5")),
@@ -200,6 +236,7 @@ const viewLayout = {
 const callbacks = [
   { name: "sonosSelect", callback: "sonosChanged", eventType: "onToggled" },
   { name: "yahueSelect", callback: "yahueChanged", eventType: "onToggled" },
+  { name: "tahomaSelect", callback: "tahomaChanged", eventType: "onToggled" },
   { name: "matrixScopeRoom", callback: "matrixScopeRoom", eventType: "onReleased" },
   { name: "matrixScopeRoom", callback: "", eventType: "onLongPressDown" },
   { name: "matrixScopeRoom", callback: "", eventType: "onLongPressReleased" },
@@ -265,6 +302,9 @@ const fqa = {
       { name: "profile_prev", value: JSON.stringify(defaultProfilePrev) },
       { name: "profile_hue_next", value: JSON.stringify(defaultProfileHueNext) },
       { name: "profile_hue_prev", value: JSON.stringify(defaultProfileHuePrev) },
+      { name: "profile_tahoma_toggle", value: JSON.stringify(defaultProfileTahomaToggle) },
+      { name: "profile_tahoma_open", value: JSON.stringify(defaultProfileTahomaOpen) },
+      { name: "profile_tahoma_close", value: JSON.stringify(defaultProfileTahomaClose) },
     ],
     uiCallbacks: callbacks,
     uiView,

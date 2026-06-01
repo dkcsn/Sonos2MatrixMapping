@@ -2,7 +2,7 @@
 -- Finds Sonos Manager children, Yahue devices and Logic Group Matrix devices.
 
 local APP_NAME = "Matrix Button Configuration"
-local APP_VERSION = "1.2.20"
+local APP_VERSION = "1.2.21"
 local DEFAULT_SOURCE_LIST = { 1, 2, 3, 11, 12, 13 }
 local DEFAULT_BACKUP_GLOBAL_NAME = "MatrixButtonConfigurationBackup"
 local DEFAULT_BUTTON_PROFILES = {
@@ -52,6 +52,42 @@ local DEFAULT_BUTTON_PROFILES = {
       Pressed = { "hueToggle" },
       Pressed2 = { "hueSetValue", 100 },
       Pressed3 = { "huePrevScene" },
+    },
+  },
+  {
+    id = "tahoma_toggle",
+    label = "Tahoma Toggle",
+    targetType = "tahoma",
+    keyMap = {
+      HeldDown = { "toggle" },
+      Released = { "stop" },
+      Pressed = { "toggle" },
+      Pressed2 = { "favorit" },
+      Pressed3 = { "nextSource" },
+    },
+  },
+  {
+    id = "tahoma_open",
+    label = "Tahoma Open",
+    targetType = "tahoma",
+    keyMap = {
+      HeldDown = { "open" },
+      Released = { "stop" },
+      Pressed = { "openAll" },
+      Pressed2 = { "favorit" },
+      Pressed3 = { "nextSource" },
+    },
+  },
+  {
+    id = "tahoma_close",
+    label = "Tahoma Close",
+    targetType = "tahoma",
+    keyMap = {
+      HeldDown = { "close" },
+      Released = { "stop" },
+      Pressed = { "closeAll" },
+      Pressed2 = { "favorit" },
+      Pressed3 = { "prevSource" },
     },
   },
 }
@@ -163,6 +199,22 @@ local function isYahueChild(device, yahueParentIds)
   local parentId = tostring(parentIdOf(device))
   if yahueParentIds[parentId] then return true end
   return YAHUE_CHILD_CLASSES[classNameOf(device)] == true
+end
+
+local function isTahomaApp(device)
+  local props = device.properties or {}
+  local vars = props.quickAppVariables or {}
+  local appInfo = decodeJson(getVar(vars, "APPINFO:"), {})
+  local appName = tostring(appInfo._APPNAME or "")
+  return appName == "LogicTahomaSwitch"
+    or contains(device.name, "LogicTahomaSwitch")
+    or contains(props.userDescription or "", "Tahoma")
+end
+
+local function isTahomaChild(device, tahomaParentIds)
+  local parentId = tostring(parentIdOf(device))
+  if not tahomaParentIds[parentId] then return false end
+  return not isTahomaApp(device)
 end
 
 local function matrixModelOf(device)
@@ -308,11 +360,14 @@ local function sortedMatrixIds(matrixIds)
   return ids
 end
 
-local function mappingKey(sonosId, matrixIds, yahueId)
+local function mappingKey(sonosId, matrixIds, yahueId, tahomaId)
   local ids = sortedMatrixIds(matrixIds)
   local destinationKey = "sonos:" .. tostring(sonosId or "")
   if yahueId ~= nil and tostring(yahueId) ~= "" then
     destinationKey = destinationKey .. "|yahue:" .. tostring(yahueId)
+  end
+  if tahomaId ~= nil and tostring(tahomaId) ~= "" then
+    destinationKey = destinationKey .. "|tahoma:" .. tostring(tahomaId)
   end
   if #ids == 0 then return destinationKey end
   return destinationKey .. "::" .. table.concat(ids, ",")
@@ -321,7 +376,7 @@ end
 local function isMappingItem(value)
   return type(value) == "table"
     and type(value.deviceMap) == "table"
-    and (value.sonosId ~= nil or value.yahueId ~= nil or type(value.destinations) == "table")
+    and (value.sonosId ~= nil or value.yahueId ~= nil or value.tahomaId ~= nil or type(value.destinations) == "table")
 end
 
 local BUTTON_KEY_IDS = { "1", "2", "3", "4" }
@@ -439,6 +494,9 @@ function QuickApp:onInit()
   self.yahueApps = {}
   self.yahueDevices = {}
   self.yahueApp = nil
+  self.tahomaApps = {}
+  self.tahomaDevices = {}
+  self.tahomaApp = nil
   self.matrixDevices = {}
   self.mapping = decodeJson(self:getVariable("mapping"), {})
   self.backupGlobalName = self:getVariable("backupGlobalName") or DEFAULT_BACKUP_GLOBAL_NAME
@@ -449,6 +507,7 @@ function QuickApp:onInit()
   self.buttonConfig = normalizeButtonConfig(DEFAULT_BUTTON_CONFIG)
   self.selectedSonosId = nil
   self.selectedYahueId = nil
+  self.selectedTahomaId = nil
   self.yahueSceneIndexes = {}
   self.yahueDimDirections = {}
   self.yahueDimStates = {}
@@ -476,9 +535,13 @@ function QuickApp:loadDevices()
   local yahueApps = {}
   local yahueDevices = {}
   local yahueParentIds = {}
+  local tahomaApps = {}
+  local tahomaDevices = {}
+  local tahomaParentIds = {}
   local matrices = {}
 
   local selectedYahueAppId = nil
+  local selectedTahomaAppId = nil
 
   for _, device in ipairs(devices) do
     if not isDead(device) and isYahueApp(device) then
@@ -491,6 +554,16 @@ function QuickApp:loadDevices()
         name = device.name or ("Yahue " .. tostring(device.id)),
         roomId = roomIdOf(device),
         uuid = quickAppUuidOf(device),
+      }
+    elseif not isDead(device) and isTahomaApp(device) then
+      tahomaParentIds[tostring(device.id)] = true
+      if selectedTahomaAppId == nil or tonumber(device.id) > tonumber(selectedTahomaAppId) then
+        selectedTahomaAppId = device.id
+      end
+      tahomaApps[#tahomaApps + 1] = {
+        id = device.id,
+        name = device.name or ("LogicTahomaSwitch " .. tostring(device.id)),
+        roomId = roomIdOf(device),
       }
     end
   end
@@ -511,6 +584,16 @@ function QuickApp:loadDevices()
         yahueDevices[#yahueDevices + 1] = {
           id = device.id,
           name = device.name or ("Hue " .. tostring(device.id)),
+          roomId = roomIdOf(device),
+          parentId = parentIdOf(device),
+          className = classNameOf(device),
+          type = device.type or "",
+        }
+      elseif tostring(parentIdOf(device)) == tostring(selectedTahomaAppId or "") and isTahomaChild(device, tahomaParentIds) then
+        tahomaDevices[#tahomaDevices + 1] = {
+          id = device.id,
+          thId = tostring(device.id),
+          name = device.name or ("Tahoma " .. tostring(device.id)),
           roomId = roomIdOf(device),
           parentId = parentIdOf(device),
           className = classNameOf(device),
@@ -546,13 +629,21 @@ function QuickApp:loadDevices()
   sortByName(sonos)
   sortByName(yahueApps)
   sortByName(yahueDevices)
+  sortByName(tahomaApps)
+  sortByName(tahomaDevices)
   sortByName(matrices)
   self.sonosDevices = sonos
   self.yahueApps = yahueApps
   self.yahueDevices = yahueDevices
+  self.tahomaApps = tahomaApps
+  self.tahomaDevices = tahomaDevices
   self.yahueApp = nil
   for _, app in ipairs(yahueApps) do
     if tostring(app.id) == tostring(selectedYahueAppId or "") then self.yahueApp = app end
+  end
+  self.tahomaApp = nil
+  for _, app in ipairs(tahomaApps) do
+    if tostring(app.id) == tostring(selectedTahomaAppId or "") then self.tahomaApp = app end
   end
   self.matrixDevices = matrices
 end
@@ -592,6 +683,21 @@ function QuickApp:refresh()
     updateSelectedItems(self, "yahueSelect", {})
   end
 
+  local tahomaOptions = {}
+  for _, device in ipairs(self.tahomaDevices or {}) do
+    tahomaOptions[#tahomaOptions + 1] = option(device.name .. " - " .. roomNameOf(device.roomId) .. " [" .. tostring(device.className or device.type or "Tahoma") .. "] #" .. tostring(device.id), device.id)
+  end
+  self:updateView("tahomaSelect", "options", tahomaOptions)
+
+  local currentTahoma = self.selectedTahomaId
+  if currentTahoma ~= nil and self:findTahomaDevice(currentTahoma) ~= nil then
+    self.selectedTahomaId = tostring(currentTahoma)
+    updateSelectedItems(self, "tahomaSelect", { self.selectedTahomaId })
+  else
+    self.selectedTahomaId = nil
+    updateSelectedItems(self, "tahomaSelect", {})
+  end
+
   self:updateMatrixOptions()
   self:updateSummary()
 end
@@ -608,6 +714,14 @@ function QuickApp:findYahueDevice(id)
   id = tostring(id or "")
   for _, device in ipairs(self.yahueDevices or {}) do
     if tostring(device.id) == id then return device end
+  end
+  return nil
+end
+
+function QuickApp:findTahomaDevice(id)
+  id = tostring(id or "")
+  for _, device in ipairs(self.tahomaDevices or {}) do
+    if tostring(device.id) == id or tostring(device.thId) == id or tostring(device.name) == id then return device end
   end
   return nil
 end
@@ -671,7 +785,8 @@ end
 function QuickApp:updateMatrixOptions()
   local sonos = self:findSonos(self.selectedSonosId)
   local yahue = self:findYahueDevice(self.selectedYahueId)
-  local roomId = sonos and sonos.roomId or (yahue and yahue.roomId or nil)
+  local tahoma = self:findTahomaDevice(self.selectedTahomaId)
+  local roomId = sonos and sonos.roomId or (yahue and yahue.roomId or (tahoma and tahoma.roomId or nil))
   local roomName = roomNameOf(roomId or 0)
   local options = {}
   local selected = {}
@@ -701,7 +816,7 @@ function QuickApp:updateMatrixOptions()
   if self.matrixScope == "all" then
     self:updateView("roomInfo", "text", "Viser alle Matrix - " .. tostring(#options) .. " fundet")
   elseif roomId == nil or tonumber(roomId) == 0 then
-    self:updateView("roomInfo", "text", "Vælg Sonos eller Yahue/Hue for samme rum - viser alle Matrix")
+    self:updateView("roomInfo", "text", "Vælg destination for samme rum - viser alle Matrix")
   else
     self:updateView("roomInfo", "text", "Viser Matrix i " .. roomName .. " - " .. tostring(#options) .. " fundet")
   end
@@ -711,7 +826,10 @@ function QuickApp:updateButtonProfileOptions()
   local options = { option("Ingen", "none") }
   for _, profile in ipairs(self.buttonProfiles or {}) do
     if profile.id ~= nil and profile.label ~= nil then
-      local prefix = tostring(profile.targetType or "sonos") == "yahue" and "Hue: " or "Sonos: "
+      local targetType = tostring(profile.targetType or "sonos")
+      local prefix = "Sonos: "
+      if targetType == "yahue" then prefix = "Hue: " end
+      if targetType == "tahoma" then prefix = "Tahoma: " end
       options[#options + 1] = option(prefix .. profile.label, profile.id)
     end
   end
@@ -800,11 +918,13 @@ end
 function QuickApp:mappingOptionText(item)
   local sonos = self:findSonos(item.sonosId) or { id = item.sonosId, name = item.sonosName or tostring(item.sonosId or "") }
   local yahue = self:findYahueDevice(item.yahueId) or { id = item.yahueId, name = item.yahueName or tostring(item.yahueId or "") }
+  local tahoma = self:findTahomaDevice(item.tahomaId) or { id = item.tahomaId, name = item.tahomaName or tostring(item.tahomaId or "") }
   local ids = item.matrixIds or {}
   local cfg = normalizeButtonConfig(item.buttonConfig or {})
   local targets = {}
   if item.sonosId ~= nil then targets[#targets + 1] = "Sonos: " .. tostring(sonos.name) end
   if item.yahueId ~= nil then targets[#targets + 1] = "Hue: " .. tostring(yahue.name) end
+  if item.tahomaId ~= nil then targets[#targets + 1] = "Tahoma: " .. tostring(tahoma.name) end
   local targetText = #targets > 0 and table.concat(targets, " / ") or "Ingen destination"
   return targetText .. " -> Matrix " .. table.concat(ids, ", ") ..
     " | K1:" .. cfg["1"] .. " K2:" .. cfg["2"] .. " K3:" .. cfg["3"] .. " K4:" .. cfg["4"]
@@ -817,22 +937,29 @@ function QuickApp:updateSummary()
     lines[#lines + 1] = "<b>Sonos childs:</b> " .. tostring(#(self.sonosDevices or {}))
     lines[#lines + 1] = "<b>Yahue apps:</b> " .. tostring(#(self.yahueApps or {}))
     lines[#lines + 1] = "<b>Yahue devices:</b> " .. tostring(#(self.yahueDevices or {}))
+    lines[#lines + 1] = "<b>Tahoma apps:</b> " .. tostring(#(self.tahomaApps or {}))
+    lines[#lines + 1] = "<b>Tahoma devices:</b> " .. tostring(#(self.tahomaDevices or {}))
     lines[#lines + 1] = "<b>Logic Matrix:</b> " .. tostring(#(self.matrixDevices or {}))
   else
     lines[#lines + 1] = "Sonos childs: " .. tostring(#(self.sonosDevices or {}))
     lines[#lines + 1] = "Yahue apps: " .. tostring(#(self.yahueApps or {}))
     lines[#lines + 1] = "Yahue devices: " .. tostring(#(self.yahueDevices or {}))
+    lines[#lines + 1] = "Tahoma apps: " .. tostring(#(self.tahomaApps or {}))
+    lines[#lines + 1] = "Tahoma devices: " .. tostring(#(self.tahomaDevices or {}))
     lines[#lines + 1] = "Logic Matrix: " .. tostring(#(self.matrixDevices or {}))
   end
   self:updateView("summarySonos", "text", "Sonos childs: " .. tostring(#(self.sonosDevices or {})))
   self:updateView("summaryYahueApps", "text", "Yahue apps: " .. tostring(#(self.yahueApps or {})) .. ((self.yahueApp or {}).id and (" (aktiv: " .. tostring((self.yahueApp or {}).id) .. ")") or ""))
   self:updateView("summaryYahueDevices", "text", "Yahue devices: " .. tostring(#(self.yahueDevices or {})))
+  self:updateView("summaryTahomaApps", "text", "Tahoma apps: " .. tostring(#(self.tahomaApps or {})) .. ((self.tahomaApp or {}).id and (" (aktiv: " .. tostring((self.tahomaApp or {}).id) .. ")") or ""))
+  self:updateView("summaryTahomaDevices", "text", "Tahoma devices: " .. tostring(#(self.tahomaDevices or {})))
   self:updateView("summaryMatrix", "text", "Logic Matrix: " .. tostring(#(self.matrixDevices or {})))
 
   for key, item in pairs(self.mapping or {}) do
     if isMappingItem(item) then
       local sonos = self:findSonos(item.sonosId) or { id = item.sonosId, name = item.sonosName or tostring(item.sonosId) }
       local yahue = self:findYahueDevice(item.yahueId) or { id = item.yahueId, name = item.yahueName or tostring(item.yahueId or "") }
+      local tahoma = self:findTahomaDevice(item.tahomaId) or { id = item.tahomaId, name = item.tahomaName or tostring(item.tahomaId or "") }
       local ids = item.matrixIds or {}
       if #ids > 0 then
         local cfg = normalizeButtonConfig(item.buttonConfig or {})
@@ -841,6 +968,9 @@ function QuickApp:updateSummary()
         if item.sonosId == nil then targetText = "" end
         if item.yahueId ~= nil then
           targetText = targetText ~= "" and (targetText .. " / Hue: " .. tostring(yahue.name)) or ("Hue: " .. tostring(yahue.name))
+        end
+        if item.tahomaId ~= nil then
+          targetText = targetText ~= "" and (targetText .. " / Tahoma: " .. tostring(tahoma.name)) or ("Tahoma: " .. tostring(tahoma.name))
         end
         local rowText
         if self.useViewLayout then
@@ -888,6 +1018,12 @@ function QuickApp:yahueChanged(event)
   self:updateMatrixOptions()
 end
 
+function QuickApp:tahomaChanged(event)
+  local values = eventValues(event)
+  self.selectedTahomaId = tostring(values[1] or "")
+  self:updateMatrixOptions()
+end
+
 function QuickApp:matrixChanged(event)
   self.pendingMatrixIds = eventValues(event)
 end
@@ -932,8 +1068,10 @@ end
 function QuickApp:saveMapping()
   local sonos = self:findSonos(self.selectedSonosId)
   local yahue = self:findYahueDevice(self.selectedYahueId)
+  local tahoma = self:findTahomaDevice(self.selectedTahomaId)
   local usesSonos = self:buttonConfigUsesTarget("sonos")
   local usesYahue = self:buttonConfigUsesTarget("yahue")
+  local usesTahoma = self:buttonConfigUsesTarget("tahoma")
   if usesSonos and sonos == nil then
     self:updateView("info", "text", "Ingen Sonos valgt")
     return
@@ -942,7 +1080,11 @@ function QuickApp:saveMapping()
     self:updateView("info", "text", "Ingen Yahue/Hue valgt")
     return
   end
-  if not usesSonos and not usesYahue then
+  if usesTahoma and tahoma == nil then
+    self:updateView("info", "text", "Ingen Tahoma/Velux valgt")
+    return
+  end
+  if not usesSonos and not usesYahue and not usesTahoma then
     self:updateView("info", "text", "Ingen knap-mapping valgt")
     return
   end
@@ -959,9 +1101,11 @@ function QuickApp:saveMapping()
 
   local sonosId = usesSonos and sonos and sonos.id or nil
   local yahueId = usesYahue and yahue and yahue.id or nil
+  local tahomaId = usesTahoma and tahoma and tahoma.id or nil
   local mappedSonos = usesSonos and sonos or nil
   local mappedYahue = usesYahue and yahue or nil
-  local key = mappingKey(sonosId, matrixIds, yahueId)
+  local mappedTahoma = usesTahoma and tahoma or nil
+  local key = mappingKey(sonosId, matrixIds, yahueId, tahomaId)
   self.mapping[key] = {
     mappingKey = key,
     sonosId = sonosId,
@@ -969,17 +1113,21 @@ function QuickApp:saveMapping()
     yahueId = yahueId,
     yahueName = mappedYahue and mappedYahue.name or nil,
     yahueAppId = (self.yahueApp or {}).id,
+    tahomaId = tahomaId,
+    tahomaName = mappedTahoma and mappedTahoma.name or nil,
+    tahomaAppId = (self.tahomaApp or {}).id,
     destinations = {
       sonos = mappedSonos and { id = mappedSonos.id, name = mappedSonos.name, managerId = mappedSonos.parentId, roomId = mappedSonos.roomId } or nil,
       yahue = mappedYahue and { id = mappedYahue.id, name = mappedYahue.name, appId = (self.yahueApp or {}).id, roomId = mappedYahue.roomId, className = mappedYahue.className } or nil,
+      tahoma = mappedTahoma and { id = mappedTahoma.id, thId = mappedTahoma.thId, name = mappedTahoma.name, appId = (self.tahomaApp or {}).id, roomId = mappedTahoma.roomId, className = mappedTahoma.className } or nil,
     },
-    roomId = mappedSonos and mappedSonos.roomId or (mappedYahue and mappedYahue.roomId or nil),
-    roomName = roomNameOf(mappedSonos and mappedSonos.roomId or (mappedYahue and mappedYahue.roomId or 0)),
+    roomId = mappedSonos and mappedSonos.roomId or (mappedYahue and mappedYahue.roomId or (mappedTahoma and mappedTahoma.roomId or nil)),
+    roomName = roomNameOf(mappedSonos and mappedSonos.roomId or (mappedYahue and mappedYahue.roomId or (mappedTahoma and mappedTahoma.roomId or 0))),
     sourceList = self.sourceList,
     buttonConfig = normalizeButtonConfig(self.buttonConfig),
     matrixIds = matrixIds,
     matrices = self:matrixDetails(matrixIds),
-    deviceMap = self:buildDeviceMap(mappedSonos, mappedYahue, matrixIds),
+    deviceMap = self:buildDeviceMap(mappedSonos, mappedYahue, mappedTahoma, matrixIds),
   }
 
   self:setVariable("mapping", encodeJson(self.mapping))
@@ -990,12 +1138,14 @@ end
 function QuickApp:clearMapping()
   local sonos = self:findSonos(self.selectedSonosId)
   local yahue = self:findYahueDevice(self.selectedYahueId)
-  if sonos == nil and yahue == nil then return end
+  local tahoma = self:findTahomaDevice(self.selectedTahomaId)
+  if sonos == nil and yahue == nil and tahoma == nil then return end
 
   for key, item in pairs(self.mapping or {}) do
     if isMappingItem(item) and (
       (sonos ~= nil and tostring(item.sonosId) == tostring(sonos.id)) or
-      (yahue ~= nil and tostring(item.yahueId) == tostring(yahue.id))
+      (yahue ~= nil and tostring(item.yahueId) == tostring(yahue.id)) or
+      (tahoma ~= nil and tostring(item.tahomaId) == tostring(tahoma.id))
     ) then self.mapping[key] = nil end
   end
   self.pendingMatrixIds = {}
@@ -1016,12 +1166,14 @@ function QuickApp:loadSelectedSavedMapping()
 
   self.selectedSonosId = item.sonosId ~= nil and tostring(item.sonosId) or nil
   self.selectedYahueId = item.yahueId ~= nil and tostring(item.yahueId) or nil
+  self.selectedTahomaId = item.tahomaId ~= nil and tostring(item.tahomaId) or nil
   self.pendingMatrixIds = sortedMatrixIds(item.matrixIds or {})
   self.buttonConfig = normalizeButtonConfig(item.buttonConfig or DEFAULT_BUTTON_CONFIG)
 
   local sonos = self:findSonos(self.selectedSonosId)
   local yahue = self:findYahueDevice(self.selectedYahueId)
-  local roomId = sonos and sonos.roomId or (yahue and yahue.roomId or nil)
+  local tahoma = self:findTahomaDevice(self.selectedTahomaId)
+  local roomId = sonos and sonos.roomId or (yahue and yahue.roomId or (tahoma and tahoma.roomId or nil))
   if self.matrixScope ~= "all" and roomId ~= nil and tonumber(roomId) ~= 0 then
     local roomMatrices = {}
     for _, matrix in ipairs(self:matricesInRoom(roomId)) do roomMatrices[tostring(matrix.id)] = true end
@@ -1036,6 +1188,7 @@ function QuickApp:loadSelectedSavedMapping()
 
   updateSelectedItems(self, "sonosSelect", self.selectedSonosId and { self.selectedSonosId } or {})
   updateSelectedItems(self, "yahueSelect", self.selectedYahueId and { self.selectedYahueId } or {})
+  updateSelectedItems(self, "tahomaSelect", self.selectedTahomaId and { self.selectedTahomaId } or {})
   self:updateMatrixOptions()
   updateSelectedItems(self, "matrixSelect", self.pendingMatrixIds)
   self:updateButtonProfileSelections()
@@ -1067,6 +1220,8 @@ function QuickApp:dumpMapping()
     self:debug(APP_NAME .. " discovered Sonos devices: " .. encodeJson(self.sonosDevices or {}))
     self:debug(APP_NAME .. " discovered Yahue apps: " .. encodeJson(self.yahueApps or {}))
     self:debug(APP_NAME .. " discovered Yahue devices: " .. encodeJson(self.yahueDevices or {}))
+    self:debug(APP_NAME .. " discovered Tahoma apps: " .. encodeJson(self.tahomaApps or {}))
+    self:debug(APP_NAME .. " discovered Tahoma devices: " .. encodeJson(self.tahomaDevices or {}))
     self:debug(APP_NAME .. " discovered matrices: " .. encodeJson(self.matrixDevices or {}))
     self:updateView("info", "text", "Gemt mapping skrevet i debug-log")
     return
@@ -1074,23 +1229,29 @@ function QuickApp:dumpMapping()
 
   local sonos = self:findSonos(self.selectedSonosId)
   local yahue = self:findYahueDevice(self.selectedYahueId)
+  local tahoma = self:findTahomaDevice(self.selectedTahomaId)
   local matrixIds = self.pendingMatrixIds or {}
-  if (sonos ~= nil or yahue ~= nil) and #matrixIds > 0 then
+  if (sonos ~= nil or yahue ~= nil or tahoma ~= nil) and #matrixIds > 0 then
     local draft = {
       sonosId = sonos and sonos.id or nil,
       sonosName = sonos and sonos.name or nil,
       yahueId = yahue and yahue.id or nil,
       yahueName = yahue and yahue.name or nil,
       yahueAppId = (self.yahueApp or {}).id,
+      tahomaId = tahoma and tahoma.id or nil,
+      tahomaName = tahoma and tahoma.name or nil,
+      tahomaAppId = (self.tahomaApp or {}).id,
       matrixIds = matrixIds,
       buttonConfig = normalizeButtonConfig(self.buttonConfig),
-      deviceMap = self:buildDeviceMap(sonos, yahue, matrixIds),
+      deviceMap = self:buildDeviceMap(sonos, yahue, tahoma, matrixIds),
       defaultSource = self.sourceList or DEFAULT_SOURCE_LIST,
     }
     self:debug(APP_NAME .. " draft mapping (ikke gemt): " .. encodeJson(draft))
     self:debug(APP_NAME .. " discovered Sonos devices: " .. encodeJson(self.sonosDevices or {}))
     self:debug(APP_NAME .. " discovered Yahue apps: " .. encodeJson(self.yahueApps or {}))
     self:debug(APP_NAME .. " discovered Yahue devices: " .. encodeJson(self.yahueDevices or {}))
+    self:debug(APP_NAME .. " discovered Tahoma apps: " .. encodeJson(self.tahomaApps or {}))
+    self:debug(APP_NAME .. " discovered Tahoma devices: " .. encodeJson(self.tahomaDevices or {}))
     self:debug(APP_NAME .. " discovered matrices: " .. encodeJson(self.matrixDevices or {}))
     self:updateView("info", "text", "Draft mapping skrevet i debug-log - tryk Gem for at gemme")
     return
@@ -1100,6 +1261,8 @@ function QuickApp:dumpMapping()
   self:debug(APP_NAME .. " discovered Sonos devices: " .. encodeJson(self.sonosDevices or {}))
   self:debug(APP_NAME .. " discovered Yahue apps: " .. encodeJson(self.yahueApps or {}))
   self:debug(APP_NAME .. " discovered Yahue devices: " .. encodeJson(self.yahueDevices or {}))
+  self:debug(APP_NAME .. " discovered Tahoma apps: " .. encodeJson(self.tahomaApps or {}))
+  self:debug(APP_NAME .. " discovered Tahoma devices: " .. encodeJson(self.tahomaDevices or {}))
   self:debug(APP_NAME .. " discovered matrices: " .. encodeJson(self.matrixDevices or {}))
   self:updateView("info", "text", "Ingen gemt mapping endnu")
 end
@@ -1249,7 +1412,7 @@ function QuickApp:matrixDetails(matrixIds)
   return details
 end
 
-function QuickApp:buildDeviceMap(sonos, yahue, matrixIds)
+function QuickApp:buildDeviceMap(sonos, yahue, tahoma, matrixIds)
   local deviceMap = {}
   local sourceList = self.sourceList or DEFAULT_SOURCE_LIST
   local buttonConfig = normalizeButtonConfig(self.buttonConfig)
@@ -1278,15 +1441,28 @@ function QuickApp:buildDeviceMap(sonos, yahue, matrixIds)
           local profileDef = self:profileForId(profile) or {}
           local targetType = tostring(profileDef.targetType or "sonos")
           local keyMap = self:keyMapForProfile(profile, sourceList)
-          if keyMap ~= nil and (targetType ~= "sonos" or sonos ~= nil) and (targetType ~= "yahue" or yahue ~= nil) then
+          if keyMap ~= nil and (targetType ~= "sonos" or sonos ~= nil) and (targetType ~= "yahue" or yahue ~= nil) and (targetType ~= "tahoma" or tahoma ~= nil) then
+            local targetId = sonos and sonos.id or nil
+            local targetName = sonos and sonos.name or nil
+            if targetType == "yahue" then
+              targetId = yahue.id
+              targetName = yahue.name
+            elseif targetType == "tahoma" then
+              targetId = tahoma.id
+              targetName = tahoma.name
+            end
             deviceMap[sceneId][keyId] = {
               devId = matrix.keys[BUTTON_DEV_KEYS[index]],
               targetType = targetType,
-              targetId = targetType == "yahue" and yahue.id or sonos.id,
-              targetName = targetType == "yahue" and yahue.name or sonos.name,
+              targetId = targetId,
+              targetName = targetName,
               sonosId = sonos and sonos.id or nil,
               yahueId = yahue and yahue.id or nil,
               yahueAppId = (self.yahueApp or {}).id,
+              tahomaId = tahoma and tahoma.id or nil,
+              tahomaName = tahoma and tahoma.name or nil,
+              tahomaAppId = (self.tahomaApp or {}).id,
+              thId = tahoma and (tahoma.thId or tahoma.id) or nil,
               keyMode = "1Button",
               profile = profile,
               keyMap = keyMap,
@@ -1313,7 +1489,7 @@ end
 
 function QuickApp:buildSwitchActionPayload(sonos, matrixIds)
   return {
-    deviceMap = self:buildDeviceMap(sonos, self:findYahueDevice(self.selectedYahueId), matrixIds),
+    deviceMap = self:buildDeviceMap(sonos, self:findYahueDevice(self.selectedYahueId), self:findTahomaDevice(self.selectedTahomaId), matrixIds),
     defaultSource = self.sourceList or DEFAULT_SOURCE_LIST,
   }
 end

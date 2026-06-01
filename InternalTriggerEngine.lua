@@ -308,6 +308,11 @@ function QuickApp:dispatchMatrixPayload(payload, keyAttribute)
     return
   end
 
+  if payload.targetType == "tahoma" then
+    self:dispatchTahomaPayload(payload)
+    return
+  end
+
   local item = payload.item or {}
   local sonos = self:findSonos(item.sonosId)
   if sonos == nil then
@@ -323,6 +328,32 @@ function QuickApp:dispatchMatrixPayload(payload, keyAttribute)
 
   self:debug("Calling Sonos switchAction for matrixId=" .. tostring(payload.sceneId))
   fibaro.call(sonosManagerId, "switchAction", payload.data)
+end
+
+function QuickApp:dispatchTahomaPayload(payload)
+  local item = payload.item or {}
+  local tahomaAppId = tonumber(item.tahomaAppId or ((item.destinations or {}).tahoma or {}).appId or ((self.tahomaApp or {}).id))
+  if tahomaAppId == nil or tahomaAppId == 0 then
+    self:loadDevices()
+    tahomaAppId = tonumber(item.tahomaAppId or ((item.destinations or {}).tahoma or {}).appId or ((self.tahomaApp or {}).id))
+  end
+
+  if tahomaAppId == nil or tahomaAppId == 0 then
+    self:debug("No LogicTahomaSwitch app found for tahomaId=" .. tostring(item.tahomaId))
+    return
+  end
+
+  self:debug("Calling Tahoma switchAction for matrixId=" .. tostring(payload.sceneId))
+  local data = payload.data or {}
+  local cleanDeviceMap = {}
+  for key, value in pairs(data.deviceMap or {}) do
+    if tostring(key):sub(1, 2) ~= "__" then cleanDeviceMap[key] = value end
+  end
+  fibaro.call(tahomaAppId, "switchAction", {
+    sourceTrigger = data.sourceTrigger,
+    deviceMap = cleanDeviceMap,
+    defaultSource = data.defaultSource,
+  })
 end
 
 function QuickApp:executeYahueAction(entry, keyAttribute)

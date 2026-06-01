@@ -1,23 +1,24 @@
 # Matrix Button Configuration
 
-Version: 1.2.6
+Version: 1.2.21
 
 ## Formål
 
 Denne QuickApp mapper Logic Group Matrix knapper til andre QuickApps uden at bruge HC3 scenes.
 
-I denne version understøttes Sonos handlinger og Yahue/Hue handlinger i samme Matrix mapping.
+I denne version understøttes Sonos, Yahue/Hue og Tahoma/Velux handlinger i samme Matrix mapping.
 
 Flowet er:
 
 1. QuickApp finder Sonos Manager child devices.
 2. QuickApp finder Yahue QA og Yahue child devices.
-3. QuickApp finder Logic Group Matrix devices.
-4. Du vælger Sonos, Matrix og knap-profiler i GUI.
-5. QuickApp lytter selv på HC3 `refreshStates`.
-6. Matrix `centralSceneEvent` sendes videre til den valgte destination pr. knap.
+3. QuickApp finder LogicTahomaSwitch QA og dens child devices.
+4. QuickApp finder Logic Group Matrix devices.
+5. Du vælger destination, Matrix og knap-profiler i GUI.
+6. QuickApp lytter selv på HC3 `refreshStates`.
+7. Matrix `centralSceneEvent` sendes videre til den valgte destination pr. knap.
 
-Selve Sonos action-logikken ligger stadig i Sonos Manager QA'en. Hue action-logikken ligger stadig i Yahue. Denne QA bygger mappingen og sender events videre.
+Selve Sonos action-logikken ligger stadig i Sonos Manager QA'en. Hue action-logikken ligger stadig i Yahue. Tahoma/Velux action-logikken ligger stadig i LogicTahomaSwitch. Denne QA bygger mappingen og sender events videre.
 
 ## Sonos Data
 
@@ -74,6 +75,36 @@ Standard Yahue-profiler:
 
 Yahue-kald udføres mod Yahue child device med `fibaro.call(...)`.
 
+## Tahoma / Velux Data
+
+Tahoma/Velux-enheder hentes fra den eksisterende Logic Group QA `LogicTahomaSwitch`.
+
+Denne QA leder efter Tahoma ved at finde en QuickApp som enten:
+
+- har `_APPNAME` = `LogicTahomaSwitch` i QuickApp variablen `APPINFO:`
+- eller har `LogicTahomaSwitch` i device-navnet
+- eller har `Tahoma` i beskrivelsen
+
+Hvis der findes flere LogicTahomaSwitch apps, bruges altid den med højest HC3 device id som aktiv Tahoma app.
+
+Når LogicTahomaSwitch QA'en er fundet, bruges dens child devices som Tahoma/Velux destinationer. Mappingen gemmer både HC3 child id og `thId`, så payloaden matcher Logic Group's Matrix/Tahoma format.
+
+Standard Tahoma-profiler:
+
+| Profil | HeldDown | Released | Pressed | Pressed2 | Pressed3 |
+| --- | --- | --- | --- | --- | --- |
+| `profile_tahoma_toggle` | toggle | stop | toggle | favorit | nextSource |
+| `profile_tahoma_open` | open | stop | openAll | favorit | nextSource |
+| `profile_tahoma_close` | close | stop | closeAll | favorit | prevSource |
+
+Når en Matrix-trigger rammer en Tahoma mapping, forwardes eventet til:
+
+```lua
+fibaro.call(tahomaAppId, "switchAction", data)
+```
+
+`deviceMap` renses for interne metadata før kaldet, så payloaden svarer til den gamle scene-baserede `devMap`.
+
 ## Matrix Data
 
 Matrix-enheder findes via HC3 devices med Logic Group productInfo:
@@ -103,7 +134,7 @@ Profilregler:
 
 | Variable | Brug |
 | --- | --- |
-| `mapping` | Gemmer alle Sonos -> Matrix mappings. Rediger normalt ikke manuelt. |
+| `mapping` | Gemmer alle destination -> Matrix mappings. Rediger normalt ikke manuelt. |
 | `useViewLayout` | `false` som standard. `true` kan bruges til HTML/viewLayout visning. |
 | `matrixScope` | `room` eller `all`. Styrer om Matrix-listen viser samme rum eller alle Matrix. |
 | `sourceList` | Standard source liste til `nextSource` og `prevSource`, fx `[1,2,3,11,12,13]`. |
@@ -111,6 +142,9 @@ Profilregler:
 | `profile_prev` | Knap-profil der vises som `Prev` i GUI. |
 | `profile_hue_next` | Yahue/Hue profil til toggle, 100%, dim up og next scene. |
 | `profile_hue_prev` | Yahue/Hue profil til toggle, 100%, dim down og previous scene. |
+| `profile_tahoma_toggle` | Tahoma/Velux profil til toggle/stop/favorit/nextSource. |
+| `profile_tahoma_open` | Tahoma/Velux profil til åbn/stop/openAll/favorit/nextSource. |
+| `profile_tahoma_close` | Tahoma/Velux profil til luk/stop/closeAll/favorit/prevSource. |
 
 ## Knap Profiler
 
@@ -151,7 +185,7 @@ Eksempel:
 
 `SOURCE_LIST` bliver automatisk erstattet med værdien fra QuickApp variablen `sourceList`.
 
-Profiler kan have `targetType`.
+Profiler kan have `targetType`: `sonos`, `yahue` eller `tahoma`.
 
 ```json
 {
@@ -193,7 +227,7 @@ Intern mapping key indeholder destinationer og Matrix id'er.
 Nye keys har formen:
 
 ```text
-sonos:<sonosId>|yahue:<yahueId>::matrixIds
+sonos:<sonosId>|yahue:<yahueId>|tahoma:<tahomaId>::matrixIds
 ```
 
 Ældre keys havde formen:
@@ -240,6 +274,8 @@ Den skriver:
 - fundne Sonos child devices
 - fundne Yahue apps
 - fundne Yahue child devices
+- fundne Tahoma apps
+- fundne Tahoma child devices
 - fundne Matrix devices
 - event aliases og profiler
 
