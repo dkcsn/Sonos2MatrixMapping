@@ -96,8 +96,8 @@ Standard Tahoma-profiler:
 | Profil | HeldDown | Released | Pressed | Pressed2 | Pressed3 |
 | --- | --- | --- | --- | --- | --- |
 | `profile_tahoma_toggle` | toggle | stop | toggle | favorit | nextSource |
-| `profile_tahoma_open` | open | stop | openAll | favorit | nextSource |
-| `profile_tahoma_close` | close | stop | closeAll | favorit | prevSource |
+| `profile_tahoma_open` | open | stop | open | favorit | nextSource |
+| `profile_tahoma_close` | close | stop | close | favorit | prevSource |
 
 Når en Matrix-trigger rammer en Tahoma mapping, forwardes eventet til:
 
@@ -114,6 +114,8 @@ Matrix-enheder findes via HC3 devices med Logic Group productInfo:
 ```lua
 productInfo:match("^2,52")
 ```
+
+Modeldetektion bruger først kendt `productInfo`, og derefter fallback på root/child metadata som modelnavn, device-navn, className og endpoint-struktur. Det betyder at enheder der kun afslører `ZBA`, `ZDB` eller `ZRB` i child-navne også bliver klassificeret korrekt.
 
 Understøttede profiler:
 
@@ -145,8 +147,8 @@ Profilregler:
 | `profile_hue_next` | Yahue/Hue profil til toggle, 100%, dim up og next scene. |
 | `profile_hue_prev` | Yahue/Hue profil til toggle, 100%, dim down og previous scene. |
 | `profile_tahoma_toggle` | Tahoma/Velux profil til toggle/stop/favorit/nextSource. |
-| `profile_tahoma_open` | Tahoma/Velux profil til åbn/stop/openAll/favorit/nextSource. |
-| `profile_tahoma_close` | Tahoma/Velux profil til luk/stop/closeAll/favorit/prevSource. |
+| `profile_tahoma_open` | Tahoma/Velux profil til åbn/stop/open/favorit/nextSource. |
+| `profile_tahoma_close` | Tahoma/Velux profil til luk/stop/close/favorit/prevSource. |
 
 ## Knap Profiler
 

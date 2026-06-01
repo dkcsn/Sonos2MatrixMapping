@@ -2,7 +2,7 @@
 -- Finds Sonos Manager children, Yahue devices and Logic Group Matrix devices.
 
 local APP_NAME = "Matrix Button Configuration"
-local APP_VERSION = "1.2.29"
+local APP_VERSION = "1.2.30"
 local DEFAULT_SOURCE_LIST = { 1, 2, 3, 11, 12, 13 }
 local DEFAULT_BACKUP_GLOBAL_NAME = "MatrixButtonConfigurationBackup"
 local DEFAULT_BUTTON_PROFILES = {
@@ -217,7 +217,7 @@ local function isTahomaChild(device, tahomaParentIds)
   return not isTahomaApp(device)
 end
 
-local function matrixModelOf(device)
+local function matrixModelOf(device, children)
   local props = ((device or {}).properties or {})
   local productInfo = props.productInfo or ""
   if type(productInfo) ~= "string" then productInfo = "" end
@@ -233,21 +233,62 @@ local function matrixModelOf(device)
     if productInfo:sub(1, #product.productInfo) == product.productInfo then return product.model end
   end
 
-  local model = lower(props.model or (device or {}).model or (device or {}).name or "")
-  if model:find("zba7140", 1, true) then return "ZBA7140" end
-  if model:find("zdb5100", 1, true) then return "ZDB5100" end
-  if model:find("zrb5120", 1, true) then return "ZRB5120" end
+  local function textOf(item)
+    local itemProps = ((item or {}).properties or {})
+    return lower(table.concat({
+      itemProps.productInfo or "",
+      itemProps.model or "",
+      itemProps.manufacturer or "",
+      itemProps.userDescription or "",
+      (item or {}).model or "",
+      (item or {}).name or "",
+      (item or {}).type or "",
+      classNameOf(item),
+    }, " "))
+  end
+
+  local function modelFromText(text)
+    if text:find("zba7140", 1, true) or text:find("zba", 1, true) then return "ZBA7140" end
+    if text:find("zdb5100", 1, true) or text:find("zdb", 1, true) then return "ZDB5100" end
+    if text:find("zrb5120", 1, true) or text:find("zrb", 1, true) then return "ZRB5120" end
+    return nil
+  end
+
+  local model = modelFromText(textOf(device))
+  if model ~= nil then return model end
+
+  local endpointMap = {}
+  for _, child in ipairs(children or {}) do
+    local childProductInfo = ((child or {}).properties or {}).productInfo or ""
+    if type(childProductInfo) == "string" then
+      for _, product in ipairs(products) do
+        if childProductInfo:sub(1, #product.productInfo) == product.productInfo then return product.model end
+      end
+    end
+
+    model = modelFromText(textOf(child))
+    if model ~= nil then return model end
+
+    local childProps = (child or {}).properties or {}
+    local endpoint = childProps.endpoint or childProps.endPoint or childProps.endpointId or childProps.nodeEndpoint or childProps.nodeEndpointId or (child or {}).endpoint
+    if type(endpoint) == "string" then endpoint = endpoint:match("(%d+)$") or endpoint:match("(%d+)") end
+    endpoint = tonumber(endpoint)
+    if endpoint ~= nil then endpointMap[endpoint] = child end
+  end
+
+  if endpointMap[6] ~= nil then return "ZRB5120" end
+  if endpointMap[5] ~= nil then return "ZDB5100" end
 
   return nil
 end
 
-local function matrixProfileOf(device)
-  local model = matrixModelOf(device)
+local function matrixProfileOf(device, children)
+  local model = matrixModelOf(device, children)
   return model, model and MATRIX_DEVICE_PROFILES and MATRIX_DEVICE_PROFILES[model] or nil
 end
 
-local function getMatrixType(device)
-  local model, profile = matrixProfileOf(device)
+local function getMatrixType(device, children)
+  local model, profile = matrixProfileOf(device, children)
   if model == "ZBA7140" then return "Matrix ZBA7140" end
   if model == "ZDB5100" then return "Matrix ZDB5100" end
   if model == "ZRB5120" then return "Matrix ZRB5120" end
@@ -634,9 +675,9 @@ function QuickApp:loadDevices()
           type = device.type or "",
         }
       elseif isLogicMatrix(device) then
-        local matrixType = getMatrixType(device)
-        local matrixModel, matrixProfile = matrixProfileOf(device)
         local children = api.get("/devices?parentId=" .. tostring(device.id)) or {}
+        local matrixType = getMatrixType(device, children)
+        local matrixModel, matrixProfile = matrixProfileOf(device, children)
         local sceneId = findMatrixSceneId(device.id, children)
         local relay = nil
         if matrixModel == "ZRB5120" then relay = findMatrixRelays(sceneId, children) end
