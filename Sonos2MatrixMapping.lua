@@ -2,7 +2,7 @@
 -- Finds Sonos Manager children, Yahue devices and Logic Group Matrix devices.
 
 local APP_NAME = "Matrix Button Configuration"
-local APP_VERSION = "1.2.27"
+local APP_VERSION = "1.2.28"
 local DEFAULT_SOURCE_LIST = { 1, 2, 3, 11, 12, 13 }
 local DEFAULT_BACKUP_GLOBAL_NAME = "MatrixButtonConfigurationBackup"
 local DEFAULT_BUTTON_PROFILES = {
@@ -982,27 +982,61 @@ end
 function QuickApp:updateSummary()
   local lines = {}
   local rows = {}
-  if self.useViewLayout then
-    lines[#lines + 1] = "<b>Sonos childs:</b> " .. tostring(#(self.sonosDevices or {}))
-    lines[#lines + 1] = "<b>Yahue apps:</b> " .. tostring(#(self.yahueApps or {}))
-    lines[#lines + 1] = "<b>Yahue devices:</b> " .. tostring(#(self.yahueDevices or {}))
-    lines[#lines + 1] = "<b>Tahoma apps:</b> " .. tostring(#(self.tahomaApps or {}))
-    lines[#lines + 1] = "<b>Tahoma devices:</b> " .. tostring(#(self.tahomaDevices or {}))
-    lines[#lines + 1] = "<b>Logic Matrix:</b> " .. tostring(#(self.matrixDevices or {}))
-  else
-    lines[#lines + 1] = "Sonos childs: " .. tostring(#(self.sonosDevices or {}))
-    lines[#lines + 1] = "Yahue apps: " .. tostring(#(self.yahueApps or {}))
-    lines[#lines + 1] = "Yahue devices: " .. tostring(#(self.yahueDevices or {}))
-    lines[#lines + 1] = "Tahoma apps: " .. tostring(#(self.tahomaApps or {}))
-    lines[#lines + 1] = "Tahoma devices: " .. tostring(#(self.tahomaDevices or {}))
-    lines[#lines + 1] = "Logic Matrix: " .. tostring(#(self.matrixDevices or {}))
+  local sonosParentIds = {}
+  local sonosQaCount = 0
+  local activeSonosQaId = nil
+  for _, sonos in ipairs(self.sonosDevices or {}) do
+    local parentId = tostring(sonos.parentId or "")
+    if parentId ~= "" and sonosParentIds[parentId] == nil then
+      sonosParentIds[parentId] = true
+      sonosQaCount = sonosQaCount + 1
+      if activeSonosQaId == nil or tonumber(parentId) > tonumber(activeSonosQaId) then activeSonosQaId = parentId end
+    end
   end
-  self:updateView("summarySonos", "text", "Sonos childs: " .. tostring(#(self.sonosDevices or {})))
-  self:updateView("summaryYahueApps", "text", "Yahue apps: " .. tostring(#(self.yahueApps or {})) .. ((self.yahueApp or {}).id and (" (aktiv: " .. tostring((self.yahueApp or {}).id) .. ")") or ""))
-  self:updateView("summaryYahueDevices", "text", "Yahue devices: " .. tostring(#(self.yahueDevices or {})))
-  self:updateView("summaryTahomaApps", "text", "Tahoma apps: " .. tostring(#(self.tahomaApps or {})) .. ((self.tahomaApp or {}).id and (" (aktiv: " .. tostring((self.tahomaApp or {}).id) .. ")") or ""))
-  self:updateView("summaryTahomaDevices", "text", "Tahoma devices: " .. tostring(#(self.tahomaDevices or {})))
-  self:updateView("summaryMatrix", "text", "Logic Matrix: " .. tostring(#(self.matrixDevices or {})))
+
+  local matrixCounts = { ZBA = 0, ZDB = 0, ZRB = 0, UNKNOWN = 0 }
+  for _, matrix in ipairs(self.matrixDevices or {}) do
+    local model = tostring(matrix.model or "UNKNOWN")
+    if model == "ZBA7140" then
+      matrixCounts.ZBA = matrixCounts.ZBA + 1
+    elseif model == "ZDB5100" then
+      matrixCounts.ZDB = matrixCounts.ZDB + 1
+    elseif model == "ZRB5120" then
+      matrixCounts.ZRB = matrixCounts.ZRB + 1
+    else
+      matrixCounts.UNKNOWN = matrixCounts.UNKNOWN + 1
+    end
+  end
+
+  local function activeText(id)
+    return id and (" (aktiv: " .. tostring(id) .. ")") or ""
+  end
+
+  local sonosSummary = "Sonos QA: " .. tostring(sonosQaCount) .. activeText(activeSonosQaId) .. " - Sonos childs: " .. tostring(#(self.sonosDevices or {}))
+  local yahueSummary = "Yahue QA: " .. tostring(#(self.yahueApps or {})) .. activeText((self.yahueApp or {}).id) .. " - Yahue devices: " .. tostring(#(self.yahueDevices or {}))
+  local tahomaSummary = "Tahoma QA: " .. tostring(#(self.tahomaApps or {})) .. activeText((self.tahomaApp or {}).id) .. " - Tahoma devices: " .. tostring(#(self.tahomaDevices or {}))
+  local matrixSummary = "Logic Matrix: " .. tostring(#(self.matrixDevices or {})) ..
+    " (ZBA: " .. tostring(matrixCounts.ZBA) ..
+    ", ZDB: " .. tostring(matrixCounts.ZDB) ..
+    ", ZRB: " .. tostring(matrixCounts.ZRB) ..
+    (matrixCounts.UNKNOWN > 0 and (", Ukendt: " .. tostring(matrixCounts.UNKNOWN)) or "") ..
+    ")"
+
+  if self.useViewLayout then
+    lines[#lines + 1] = "<b>" .. sonosSummary .. "</b>"
+    lines[#lines + 1] = "<b>" .. yahueSummary .. "</b>"
+    lines[#lines + 1] = "<b>" .. tahomaSummary .. "</b>"
+    lines[#lines + 1] = "<b>" .. matrixSummary .. "</b>"
+  else
+    lines[#lines + 1] = sonosSummary
+    lines[#lines + 1] = yahueSummary
+    lines[#lines + 1] = tahomaSummary
+    lines[#lines + 1] = matrixSummary
+  end
+  self:updateView("summarySonos", "text", sonosSummary)
+  self:updateView("summaryYahueApps", "text", yahueSummary)
+  self:updateView("summaryTahomaApps", "text", tahomaSummary)
+  self:updateView("summaryMatrix", "text", matrixSummary)
 
   for key, item in pairs(self.mapping or {}) do
     if isMappingItem(item) then
