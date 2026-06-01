@@ -2,7 +2,7 @@
 -- Finds Sonos Manager children, Yahue devices and Logic Group Matrix devices.
 
 local APP_NAME = "Matrix Button Configuration"
-local APP_VERSION = "1.2.45"
+local APP_VERSION = "1.2.46"
 local DEFAULT_SOURCE_LIST = { 1, 2, 3, 11, 12, 13 }
 local DEFAULT_BACKUP_GLOBAL_NAME = "MatrixButtonConfigurationBackup"
 local DEFAULT_BUTTON_PROFILES = {
@@ -561,6 +561,21 @@ local function debugIdName(device)
   return tostring(device.id or "?") .. ":" .. tostring(device.name or "?")
 end
 
+local function normalizeDestinationType(value)
+  value = tostring(value or "yahue")
+  if value == "hue" then return "yahue" end
+  if value == "velux" then return "tahoma" end
+  if value == "yahue" or value == "tahoma" or value == "sonos" then return value end
+  return "yahue"
+end
+
+local function destinationTypeLabel(value)
+  value = normalizeDestinationType(value)
+  if value == "yahue" then return "Hue" end
+  if value == "tahoma" then return "Velux" end
+  return "Sonos"
+end
+
 function QuickApp:onInit()
   self:debug("==================================================")
   self:debug(APP_NAME .. " v" .. APP_VERSION .. " starting")
@@ -582,6 +597,7 @@ function QuickApp:onInit()
   self.backupGlobalName = self:getVariable("backupGlobalName") or DEFAULT_BACKUP_GLOBAL_NAME
   self.useViewLayout = asBool(self:getVariable("useViewLayout"), false)
   self.matrixScope = self:getVariable("matrixScope") or "room"
+  self.activeDestinationType = normalizeDestinationType(self:getVariable("activeDestinationType"))
   self.sourceList = decodeJson(self:getVariable("sourceList"), DEFAULT_SOURCE_LIST)
   self.pendingMatrixIds = sortedMatrixIds(decodeJson(self:getVariable("selectedMatrixIds"), {}))
   self.buttonProfiles = self:loadButtonProfiles()
@@ -781,6 +797,7 @@ function QuickApp:refresh()
   self.selectedTahomaId = selectedTahomaIds[1]
   updateSelectedItems(self, "tahomaSelect", selectedTahomaIds)
 
+  self:updateActiveDestinationControls()
   self:updateMatrixOptions()
   self:updateSummary()
 end
@@ -913,24 +930,75 @@ function QuickApp:updateMatrixOptions()
   else
     self:updateView("roomInfo", "text", "Viser Matrix i " .. roomName .. " - " .. tostring(#options) .. " fundet")
   end
+  self:updateActiveMappingStatus()
 end
 
 function QuickApp:updateButtonProfileOptions()
   local options = { option("Ingen", "none") }
+  local activeType = normalizeDestinationType(self.activeDestinationType)
   for _, profile in ipairs(self.buttonProfiles or {}) do
     if profile.id ~= nil and profile.label ~= nil then
       local targetType = tostring(profile.targetType or "sonos")
-      local prefix = "Sonos: "
-      if targetType == "yahue" then prefix = "Hue: " end
-      if targetType == "tahoma" then prefix = "Tahoma: " end
-      options[#options + 1] = option(prefix .. profile.label, profile.id)
+      if targetType == activeType then
+        local prefix = "Sonos: "
+        if targetType == "yahue" then prefix = "Hue: " end
+        if targetType == "tahoma" then prefix = "Tahoma: " end
+        options[#options + 1] = option(prefix .. profile.label, profile.id)
+      end
     end
+  end
+
+  self.buttonConfig = normalizeButtonConfig(self.buttonConfig)
+  for _, keyId in ipairs(BUTTON_KEY_IDS) do
+    local profileId = self.buttonConfig[keyId]
+    if profileId ~= "none" and self:profileTargetType(profileId) ~= activeType then self.buttonConfig[keyId] = "none" end
   end
 
   for _, keyId in ipairs(BUTTON_KEY_IDS) do
     self:updateView("button" .. keyId .. "Map", "options", options)
   end
   self:updateButtonProfileSelections()
+end
+
+function QuickApp:updateActiveDestinationControls()
+  local activeType = normalizeDestinationType(self.activeDestinationType)
+  self.activeDestinationType = activeType
+  self:setVariable("activeDestinationType", activeType)
+
+  self:updateView("destinationHue", "text", activeType == "yahue" and "Valgt: HUE" or "HUE")
+  self:updateView("destinationVelux", "text", activeType == "tahoma" and "Valgt: VELUX" or "VELUX")
+  self:updateView("destinationSonos", "text", activeType == "sonos" and "Valgt: SONOS" or "SONOS")
+  self:updateView("yahueSelect", "visible", activeType == "yahue")
+  self:updateView("tahomaSelect", "visible", activeType == "tahoma")
+  self:updateView("sonosSelect", "visible", activeType == "sonos")
+  self:updateButtonProfileOptions()
+  self:updateActiveMappingStatus()
+end
+
+function QuickApp:updateActiveMappingStatus()
+  local activeType = normalizeDestinationType(self.activeDestinationType)
+  local parts = { destinationTypeLabel(activeType) }
+
+  if activeType == "yahue" then
+    local yahue = self:findYahueDevice(self.selectedYahueId)
+    parts[#parts + 1] = yahue and tostring(yahue.name) or "vælg Hue"
+  elseif activeType == "tahoma" then
+    local tahomas = self:findTahomaDevices(self.selectedTahomaIds or {})
+    if #tahomas > 0 then
+      local names = {}
+      for _, device in ipairs(tahomas) do names[#names + 1] = tostring(device.name) end
+      parts[#parts + 1] = table.concat(names, ", ")
+    else
+      parts[#parts + 1] = "vælg Velux"
+    end
+  else
+    local sonos = self:findSonos(self.selectedSonosId)
+    parts[#parts + 1] = sonos and tostring(sonos.name) or "vælg Sonos"
+  end
+
+  local matrixIds = sortedMatrixIds(self.pendingMatrixIds or {})
+  parts[#parts + 1] = #matrixIds > 0 and ("Matrix " .. table.concat(matrixIds, ", ")) or "vælg Matrix"
+  self:updateView("activeMappingStatus", "text", "Aktiv mapping: " .. table.concat(parts, " / "))
 end
 
 function QuickApp:loadButtonProfiles()
@@ -1147,6 +1215,7 @@ function QuickApp:sonosChanged(event)
   self.selectedSonosId = tostring(values[1] or "")
   self:debug("UI select sonosSelect raw=" .. encodeJson(event) .. " parsed=" .. encodeJson(values) .. " selectedSonosId=" .. tostring(self.selectedSonosId))
   self:updateMatrixOptions()
+  self:updateActiveMappingStatus()
 end
 
 function QuickApp:yahueChanged(event)
@@ -1154,6 +1223,7 @@ function QuickApp:yahueChanged(event)
   self.selectedYahueId = tostring(values[1] or "")
   self:debug("UI select yahueSelect raw=" .. encodeJson(event) .. " parsed=" .. encodeJson(values) .. " selectedYahueId=" .. tostring(self.selectedYahueId))
   self:updateMatrixOptions()
+  self:updateActiveMappingStatus()
 end
 
 function QuickApp:tahomaChanged(event)
@@ -1163,12 +1233,14 @@ function QuickApp:tahomaChanged(event)
   if self.selectedTahomaId == "" then self.selectedTahomaId = nil end
   self:debug("UI select tahomaSelect raw=" .. encodeJson(event) .. " parsed=" .. encodeJson(values) .. " selectedTahomaIds=" .. encodeJson(self.selectedTahomaIds))
   self:updateMatrixOptions()
+  self:updateActiveMappingStatus()
 end
 
 function QuickApp:matrixChanged(event)
   self.pendingMatrixIds = sortedMatrixIds(eventValues(event))
   self:debug("UI select matrixSelect raw=" .. encodeJson(event) .. " parsed=" .. encodeJson(self.pendingMatrixIds))
   self:setVariable("selectedMatrixIds", encodeJson(self.pendingMatrixIds))
+  self:updateActiveMappingStatus()
 end
 
 function QuickApp:matrixScopeChanged(event)
@@ -1191,6 +1263,17 @@ function QuickApp:matrixScopeAll()
   self:updateMatrixOptions()
 end
 
+function QuickApp:setActiveDestinationType(targetType)
+  self.activeDestinationType = normalizeDestinationType(targetType)
+  self:debug("Active destination type: " .. tostring(self.activeDestinationType))
+  self:updateActiveDestinationControls()
+  self:updateMatrixOptions()
+end
+
+function QuickApp:destinationHue() self:setActiveDestinationType("yahue") end
+function QuickApp:destinationVelux() self:setActiveDestinationType("tahoma") end
+function QuickApp:destinationSonos() self:setActiveDestinationType("sonos") end
+
 function QuickApp:savedMappingSelected(event)
   local values = eventValues(event)
   self.selectedSavedMappingKey = tostring(values[1] or "")
@@ -1208,6 +1291,7 @@ function QuickApp:setButtonProfile(keyId, event)
   self.buttonConfig = normalizeButtonConfig(self.buttonConfig)
   self.buttonConfig[tostring(keyId)] = tostring(values[1] or "none")
   self:debug("UI select button" .. tostring(keyId) .. "Map raw=" .. encodeJson(event) .. " parsed=" .. encodeJson(values) .. " buttonConfig=" .. encodeJson(self.buttonConfig))
+  self:updateActiveMappingStatus()
 end
 
 function QuickApp:saveMapping()
@@ -1215,14 +1299,16 @@ function QuickApp:saveMapping()
   local yahue = self:findYahueDevice(self.selectedYahueId)
   local tahomas = self:findTahomaDevices(self.selectedTahomaIds or {})
   local tahoma = tahomas[1]
-  local usesSonos = self:buttonConfigUsesTarget("sonos")
-  local usesYahue = self:buttonConfigUsesTarget("yahue")
-  local usesTahoma = self:buttonConfigUsesTarget("tahoma")
+  local activeType = normalizeDestinationType(self.activeDestinationType)
+  local usesSonos = activeType == "sonos" and self:buttonConfigUsesTarget("sonos")
+  local usesYahue = activeType == "yahue" and self:buttonConfigUsesTarget("yahue")
+  local usesTahoma = activeType == "tahoma" and self:buttonConfigUsesTarget("tahoma")
   self:debug("SaveMapping state: selectedSonosId=" .. tostring(self.selectedSonosId or "nil") ..
     ", selectedYahueId=" .. tostring(self.selectedYahueId or "nil") ..
     ", selectedTahomaIds=" .. encodeJson(self.selectedTahomaIds or {}) ..
     ", pendingMatrixIds=" .. encodeJson(self.pendingMatrixIds or {}) ..
     ", matrixScope=" .. tostring(self.matrixScope or "nil") ..
+    ", activeDestinationType=" .. tostring(activeType) ..
     ", buttonConfig=" .. encodeJson(normalizeButtonConfig(self.buttonConfig)) ..
     ", usesSonos=" .. tostring(usesSonos) ..
     ", usesYahue=" .. tostring(usesYahue) ..
@@ -1311,6 +1397,7 @@ function QuickApp:saveMapping()
 
   self:setVariable("mapping", encodeJson(self.mapping))
   self:updateView("info", "text", "Mapping gemt -> Matrix " .. table.concat(matrixIds, ", "))
+  self:updateActiveMappingStatus()
   self:updateSummary()
 end
 
@@ -1329,6 +1416,7 @@ function QuickApp:clearCurrentSelections()
   updateSelectedItems(self, "matrixSelect", {})
   self:updateButtonProfileSelections()
   self:updateView("info", "text", "Valg nulstillet")
+  self:updateActiveMappingStatus()
   self:updateSummary()
 end
 
